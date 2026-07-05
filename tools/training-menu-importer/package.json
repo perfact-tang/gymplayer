@@ -1,0 +1,18 @@
+{
+  "name": "gymplayer-training-menu-importer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Overwrite Firestore training menu master data from a CSV file.",
+  "scripts": {
+    "import": "node src/importTrainingMenu.js",
+    "dry-run": "node src/importTrainingMenu.js --csv sample-training-menu.csv --dry-run"
+  },
+  "dependencies": {
+    "csv-parse": "^7.0.1",
+    "firebase-admin": "^14.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
