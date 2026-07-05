@@ -3,6 +3,7 @@ package com.vibecodingjapan.gymplayer
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -13,6 +14,7 @@ import androidx.room.Room
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +28,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.text.Normalizer
 import kotlin.random.Random
 
 private val Context.sessionStore by preferencesDataStore("session")
@@ -225,15 +228,33 @@ class GymRepository(private val context: Context) {
   }
 
   private suspend fun downloadMachineImageIfExists(machineId: String, imageStorageUrl: String): String? =
-    runCatching {
-      val ref = storage.getReferenceFromUrl(imageStorageUrl)
-      ref.metadata.await()
-      val extension = imageStorageUrl.substringAfterLast('/', machineId).substringAfterLast('.', "png").substringBefore('?').ifBlank { "png" }
-      val imageDir = File(context.filesDir, "machine-images").apply { mkdirs() }
-      val imageFile = File(imageDir, "$machineId.$extension")
-      ref.getFile(imageFile).await()
-      imageFile.absolutePath
-    }.getOrNull()
+    storageReferencesFromUrl(imageStorageUrl).firstNotNullOfOrNull { ref ->
+      runCatching {
+        ref.metadata.await()
+        val extension = ref.name.substringAfterLast('.', "png").ifBlank { "png" }
+        val imageDir = File(context.filesDir, "machine-images").apply { mkdirs() }
+        val imageFile = File(imageDir, "$machineId.$extension")
+        ref.getFile(imageFile).await()
+        imageFile.absolutePath
+      }.getOrNull()
+    }
+
+  private fun storageReferencesFromUrl(imageStorageUrl: String): List<StorageReference> {
+    val trimmed = imageStorageUrl.trim()
+    if (!trimmed.startsWith("gs://")) return listOf(storage.getReferenceFromUrl(trimmed))
+    val withoutScheme = trimmed.removePrefix("gs://")
+    val slashIndex = withoutScheme.indexOf('/')
+    require(slashIndex > 0 && slashIndex < withoutScheme.lastIndex) { "Invalid Firebase Storage URL: $imageStorageUrl" }
+    val bucket = withoutScheme.substring(0, slashIndex)
+    val rawPath = withoutScheme.substring(slashIndex + 1)
+    val objectPath = Uri.decode(rawPath)
+    val bucketRef = FirebaseStorage.getInstance("gs://$bucket").reference
+    return listOf(
+      objectPath,
+      Normalizer.normalize(objectPath, Normalizer.Form.NFC),
+      Normalizer.normalize(objectPath, Normalizer.Form.NFD),
+    ).distinct().map { path -> bucketRef.child(path) }
+  }
 }
 
 class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.ViewModel() {
