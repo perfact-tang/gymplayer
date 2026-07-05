@@ -39,9 +39,13 @@ data class WorkoutSessionEntity(
   val systolic: Int,
   val diastolic: Int,
   val pulse: Int,
+  val bodyFatPercent: Double?,
   val muscleMassKg: Double?,
   val bodyWaterPercent: Double?,
   val weightKg: Double?,
+  val bmi: Double?,
+  val basalMetabolism: Double?,
+  val visceralFat: Double?,
   val synced: Boolean,
 )
 
@@ -147,7 +151,7 @@ interface GymPlayerDao {
 
 @Database(
   entities = [UserSessionEntity::class, MachineEntity::class, WorkoutSessionEntity::class, WorkoutSetEntity::class, DeletedWorkoutSessionEntity::class, PlaylistEntity::class, TrackEntity::class],
-  version = 3,
+  version = 4,
   exportSchema = false,
 )
 abstract class GymPlayerDatabase : RoomDatabase() {
@@ -166,5 +170,15 @@ val MIGRATION_2_3 =
   object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
       db.execSQL("CREATE TABLE IF NOT EXISTS deleted_workout_sessions (id TEXT NOT NULL PRIMARY KEY, uid TEXT NOT NULL, deletedAt INTEGER NOT NULL)")
+    }
+  }
+
+val MIGRATION_3_4 =
+  object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL("ALTER TABLE workout_sessions ADD COLUMN bodyFatPercent REAL")
+      db.execSQL("ALTER TABLE workout_sessions ADD COLUMN bmi REAL")
+      db.execSQL("ALTER TABLE workout_sessions ADD COLUMN basalMetabolism REAL")
+      db.execSQL("ALTER TABLE workout_sessions ADD COLUMN visceralFat REAL")
     }
   }

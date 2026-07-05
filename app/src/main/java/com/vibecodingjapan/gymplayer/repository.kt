@@ -37,7 +37,7 @@ class GymRepository(private val context: Context) {
   private val db =
     Room.databaseBuilder(context, GymPlayerDatabase::class.java, "gymplayer.db")
       .fallbackToDestructiveMigration(false)
-      .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
       .build()
   private val dao = db.dao()
   private val uidKey = stringPreferencesKey("uid")
@@ -73,9 +73,13 @@ class GymRepository(private val context: Context) {
           systolic = it.systolic,
           diastolic = it.diastolic,
           pulse = it.pulse,
+          bodyFatPercent = it.bodyFatPercent,
           muscleMassKg = it.muscleMassKg,
           bodyWaterPercent = it.bodyWaterPercent,
           weightKg = it.weightKg,
+          bmi = it.bmi,
+          basalMetabolism = it.basalMetabolism,
+          visceralFat = it.visceralFat,
           synced = it.synced,
         )
       }
@@ -160,21 +164,21 @@ class GymRepository(private val context: Context) {
   suspend fun sync(onProgress: (SyncProgress) -> Unit = {}): Result<String> =
     withContext(Dispatchers.IO) {
       runCatching {
-        val tasks = listOf("网络确认", "登录状态确认", "删除云端已删除记录", "上传未同步训练记录", "下载器械资料", "下载器械图片", "完成")
+        val tasks = listOf("通信確認", "ログイン確認", "クラウド削除", "未同期データ送信", "マシン情報取得", "マシン画像取得", "完了")
         fun progress(index: Int, task: String) = onProgress(SyncProgress((index + 1) / tasks.size.toFloat(), task, tasks.take(index + 1)))
-        progress(0, "网络确认")
+        progress(0, "通信確認")
         if (!isOnline()) return@runCatching "オフラインです。ネットワークがありません。"
-        progress(1, "登录状态确认")
+        progress(1, "ログイン確認")
         val current = session.first()
         require(current.loggedIn && current.uid.isNotBlank()) { "ログインしてください" }
-        progress(2, "删除云端已删除记录")
+        progress(2, "クラウド削除")
         val deleted = dao.deletedWorkoutSessions()
         for (row in deleted) {
           val uid = row.uid.ifBlank { current.uid }
           firestore.collection("users").document(uid).collection("workoutSessions").document(row.id).delete().await()
           dao.clearDeletedWorkoutSession(row.id)
         }
-        progress(3, "上传未同步训练记录")
+        progress(3, "未同期データ送信")
         val unsynced = dao.unsyncedSessions()
         for (row in unsynced) {
           val sets = dao.setsForSession(row.id)
@@ -183,7 +187,7 @@ class GymRepository(private val context: Context) {
             .await()
           dao.markSessionSynced(row.id)
         }
-        progress(4, "下载器械资料")
+        progress(4, "マシン情報取得")
         val machineSnapshot = firestore.collection("machines").get().await()
         val remoteMachines =
           machineSnapshot.documents.mapNotNull { doc ->
@@ -199,7 +203,7 @@ class GymRepository(private val context: Context) {
               imageStorageUrl = imageStorageUrl,
               localImagePath =
                 imageStorageUrl?.let {
-                  progress(5, "下载器械图片")
+                  progress(5, "マシン画像取得")
                   downloadMachineImageIfExists(doc.id, it)
                 },
               updatedAt = doc.getLong("updatedAt") ?: System.currentTimeMillis(),
@@ -208,7 +212,7 @@ class GymRepository(private val context: Context) {
         dao.clearMachines()
         if (remoteMachines.isNotEmpty()) dao.upsertMachines(remoteMachines)
         context.sessionStore.edit { it[lastSyncKey] = System.currentTimeMillis() }
-        progress(6, "完成")
+        progress(6, "完了")
         "同期しました。アップロードに成功しました。"
       }
     }
@@ -244,12 +248,12 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
           it.copy(
             machines = machines,
             selectedMachine = machines.firstOrNull { machine -> machine.id == it.selectedMachine.id } ?: machines.firstOrNull() ?: it.selectedMachine,
-          )
+          ).withPreviousMenuDefault()
         }
       }
     }
-    viewModelScope.launch { repository.sessions.collect { sessions -> _state.update { it.copy(sessions = sessions) } } }
-    viewModelScope.launch { repository.savedSets.collect { sets -> _state.update { it.copy(savedSets = sets) } } }
+    viewModelScope.launch { repository.sessions.collect { sessions -> _state.update { it.copy(sessions = sessions).withPreviousMenuDefault() } } }
+    viewModelScope.launch { repository.savedSets.collect { sets -> _state.update { it.copy(savedSets = sets).withPreviousMenuDefault() } } }
     viewModelScope.launch { repository.playlists.collect { playlists -> _state.update { it.copy(playlists = playlists) } } }
     viewModelScope.launch { repository.allTracks.collect { tracks -> _state.update { it.copy(tracks = tracks) } } }
     viewModelScope.launch { repository.weightUnit.collect { unit -> _state.update { it.copy(weightUnit = unit) } } }
@@ -295,7 +299,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     val current = _state.value
     val workoutMachines = current.workoutMachines
     if (workoutMachines.isEmpty()) {
-      _state.update { it.copy(message = "今日トレーニングする器械を選択してください") }
+      _state.update { it.copy(message = "今日トレーニングするマシンを選択してください") }
       return
     }
     _state.update {
@@ -469,9 +473,13 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
           diastolic = current.bodyCheck.diastolic,
           pulse = current.bodyCheck.pulse,
           endedAt = LocalDateTime.now(),
+          weightKg = result.weightKg.toDoubleOrNull(),
+          bodyFatPercent = result.bodyFatPercent.toDoubleOrNull(),
           muscleMassKg = result.muscleMassKg.toDoubleOrNull(),
           bodyWaterPercent = result.bodyWaterPercent.toDoubleOrNull(),
-          weightKg = result.weightKg.toDoubleOrNull(),
+          bmi = result.bmi.toDoubleOrNull(),
+          basalMetabolism = result.basalMetabolism.toDoubleOrNull(),
+          visceralFat = result.visceralFat.toDoubleOrNull(),
         )
       repository.saveWorkout(session, current.workoutSets.map { it.copy(sessionId = session.id) })
       _state.update { it.copy(workoutSets = emptyList(), selectedWorkoutMachineIds = emptyList(), message = "今日のトレーニングを保存しました", screen = Screen.History) }
@@ -497,10 +505,10 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
 
   fun sync() {
     launchSafe {
-      val allTasks = listOf("网络确认", "登录状态确认", "删除云端已删除记录", "上传未同步训练记录", "下载器械资料", "下载器械图片", "完成")
+      val allTasks = listOf("通信確認", "ログイン確認", "クラウド削除", "未同期データ送信", "マシン情報取得", "マシン画像取得", "完了")
       _state.update {
         it.copy(
-          syncDialog = SyncDialogState(visible = true, processing = true, title = "正在处理中", message = "同期を開始しました", progress = 0f, tasks = allTasks, currentTask = allTasks.first()),
+          syncDialog = SyncDialogState(visible = true, processing = true, title = "処理中", message = "同期を開始しました", progress = 0f, tasks = allTasks, currentTask = allTasks.first()),
         )
       }
       repository.sync { progress ->
@@ -510,7 +518,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
               SyncDialogState(
                 visible = true,
                 processing = true,
-                title = "正在处理中",
+                title = "処理中",
                 message = progress.currentTask,
                 progress = progress.progress,
                 tasks = progress.tasks,
@@ -520,11 +528,11 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
         }
       }.onSuccess { message ->
         _state.update {
-          it.copy(syncDialog = SyncDialogState(visible = true, processing = false, title = "同期完毕", message = message, progress = 1f, tasks = allTasks, currentTask = "完成"))
+          it.copy(syncDialog = SyncDialogState(visible = true, processing = false, title = "同期完了", message = message, progress = 1f, tasks = allTasks, currentTask = "完了"))
         }
       }.onFailure { error ->
         _state.update {
-          it.copy(syncDialog = SyncDialogState(visible = true, processing = false, title = "同期失败", message = error.message ?: "同期できませんでした", progress = 1f, tasks = allTasks, currentTask = "失败"))
+          it.copy(syncDialog = SyncDialogState(visible = true, processing = false, title = "同期失敗", message = error.message ?: "同期できませんでした", progress = 1f, tasks = allTasks, currentTask = "失敗"))
         }
       }
     }
@@ -608,7 +616,7 @@ data class AppState(
 
 private fun AppState.withPreviousMenuDefault(): AppState {
   if (screen != Screen.TrainingMenu) return this
-  if (hasActiveWorkout || hasCompletedWorkoutToday) return this
+  if (selectedWorkoutMachineIds.isNotEmpty() || workoutSets.isNotEmpty()) return this
   val lastSession = sessions.maxByOrNull { it.startedAt } ?: return this
   val previousMachineIds =
     savedSets
@@ -629,7 +637,24 @@ private fun Machine.toEntity() = MachineEntity(id, number, name, bodyPart, icon,
 private fun Playlist.toEntity() = PlaylistEntity(id, name, folderUri, createdAt)
 private fun Track.toEntity() = TrackEntity(id, playlistId, uri, title, artist, durationMs, orderIndex)
 private fun WorkoutSession.toEntity() =
-  WorkoutSessionEntity(id, uid, date.toString(), startedAt.toString(), endedAt?.toString(), systolic, diastolic, pulse, muscleMassKg, bodyWaterPercent, weightKg, synced)
+  WorkoutSessionEntity(
+    id,
+    uid,
+    date.toString(),
+    startedAt.toString(),
+    endedAt?.toString(),
+    systolic,
+    diastolic,
+    pulse,
+    bodyFatPercent,
+    muscleMassKg,
+    bodyWaterPercent,
+    weightKg,
+    bmi,
+    basalMetabolism,
+    visceralFat,
+    synced,
+  )
 private fun WorkoutSet.toEntity() = WorkoutSetEntity(id, sessionId, machineId, machineNumber, machineName, setIndex, weightKg, reps, completedAt.toString())
 
 private fun WorkoutSessionEntity.toFirestoreMap() =
@@ -641,9 +666,13 @@ private fun WorkoutSessionEntity.toFirestoreMap() =
     "systolic" to systolic,
     "diastolic" to diastolic,
     "pulse" to pulse,
+    "weightKg" to weightKg,
+    "bodyFatPercent" to bodyFatPercent,
     "muscleMassKg" to muscleMassKg,
     "bodyWaterPercent" to bodyWaterPercent,
-    "weightKg" to weightKg,
+    "bmi" to bmi,
+    "basalMetabolism" to basalMetabolism,
+    "visceralFat" to visceralFat,
     "syncedAt" to System.currentTimeMillis(),
   )
 

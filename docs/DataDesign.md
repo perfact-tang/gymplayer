@@ -8,7 +8,7 @@ GymPlayer is local-first. The app starts without network validation and writes w
 | --- | --- | --- |
 | `user_session` | Cached Firebase login state | `uid`, `email`, `loggedIn`, `lastSyncAt` |
 | `machines` | Cached gym machine master data | `id`, `number`, `name`, `bodyPart`, `icon`, `targetSets`, `defaultWeight`, `imageStorageUrl`, `updatedAt` |
-| `workout_sessions` | One workout day/session | `id`, `uid`, `date`, `startedAt`, `endedAt`, `systolic`, `diastolic`, `pulse`, `muscleMassKg`, `bodyWaterPercent`, `weightKg`, `synced` |
+| `workout_sessions` | One workout day/session | `id`, `uid`, `date`, `startedAt`, `endedAt`, `systolic`, `diastolic`, `pulse`, `weightKg`, `bodyFatPercent`, `muscleMassKg`, `bodyWaterPercent`, `bmi`, `basalMetabolism`, `visceralFat`, `synced` |
 | `workout_sets` | Per-machine set records | `id`, `sessionId`, `machineId`, `machineNumber`, `machineName`, `setIndex`, `weightKg`, `reps`, `completedAt` |
 | `playlists` | Local music playlists | `id`, `name`, `folderUri`, `createdAt` |
 | `tracks` | Ordered tracks in a playlist | `id`, `playlistId`, `uri`, `title`, `artist`, `durationMs`, `orderIndex` |
@@ -34,14 +34,18 @@ Example workout document:
   "systolic": 120,
   "diastolic": 80,
   "pulse": 72,
+  "weightKg": 72.4,
+  "bodyFatPercent": 18.5,
   "muscleMassKg": 52.3,
   "bodyWaterPercent": 58.1,
-  "weightKg": 72.4,
+  "bmi": 23.1,
+  "basalMetabolism": 1540,
+  "visceralFat": 8.0,
   "sets": [
     {
       "machineId": "machine-3",
       "machineNumber": 3,
-      "machineName": "側推胸机",
+      "machineName": "チェストプレス",
       "setIndex": 1,
       "weightLb": 88,
       "storedWeightUnit": "lb",
@@ -64,8 +68,8 @@ Example machine document:
 ```json
 {
   "number": 3,
-  "name": "側推胸机",
-  "bodyPart": "胸",
+  "name": "チェストプレス",
+  "bodyPart": "胸部",
   "icon": "machine_chest_press",
   "targetSets": 3,
   "defaultWeight": 40,

@@ -41,9 +41,13 @@ data class WorkoutSession(
   val systolic: Int = 120,
   val diastolic: Int = 80,
   val pulse: Int = 72,
+  val bodyFatPercent: Double? = null,
   val muscleMassKg: Double? = null,
   val bodyWaterPercent: Double? = null,
   val weightKg: Double? = null,
+  val bmi: Double? = null,
+  val basalMetabolism: Double? = null,
+  val visceralFat: Double? = null,
   val synced: Boolean = false,
 )
 
@@ -61,7 +65,15 @@ data class Track(
 
 data class BodyCheck(val systolic: Int = 120, val diastolic: Int = 80, val pulse: Int = 72)
 
-data class BodyResult(val muscleMassKg: String = "", val bodyWaterPercent: String = "", val weightKg: String = "")
+data class BodyResult(
+  val weightKg: String = "",
+  val bodyFatPercent: String = "",
+  val muscleMassKg: String = "",
+  val bodyWaterPercent: String = "",
+  val bmi: String = "",
+  val basalMetabolism: String = "",
+  val visceralFat: String = "",
+)
 
 enum class Screen { Home, Music, TrainingMenu, BodyCheck, Training, FinishBody, History, Settings }
 

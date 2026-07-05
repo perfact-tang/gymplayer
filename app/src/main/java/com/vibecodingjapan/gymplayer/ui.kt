@@ -316,7 +316,7 @@ private fun TopStatus(state: AppState, vm: AppViewModel) {
     MusicBar(state, vm, Modifier.weight(1f))
     Text(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")), fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Color.White)
     if (state.restRemaining > 0 || state.isRestAlarmRinging) {
-      Text("休息 ${state.restRemaining}s", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Gold, maxLines = 1)
+      Text("休憩 ${state.restRemaining}s", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Gold, maxLines = 1)
     }
   }
 }
@@ -381,8 +381,8 @@ private fun HomeScreen(state: AppState, vm: AppViewModel) {
     Text("おはようございます!", fontSize = 34.sp, fontWeight = FontWeight.Bold)
     Text("今日も最高のトレーニングを。", color = Muted, fontSize = 18.sp)
     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-      HeroCard("🎧", "Music", "プレイリスト再生", "音楽を楽しもう", Modifier.weight(1f)) { vm.navigate(Screen.Music) }
-      HeroCard("🏋", "Training Menu", "今日のメニューを確認", "トレーニングを記録", Modifier.weight(1f)) { vm.navigate(Screen.TrainingMenu) }
+      HeroCard("🎧", "ミュージック", "プレイリスト再生", "音楽を楽しもう", Modifier.weight(1f)) { vm.navigate(Screen.Music) }
+      HeroCard("🏋", "トレーニング", "今日のメニューを確認", "トレーニングを記録", Modifier.weight(1f)) { vm.navigate(Screen.TrainingMenu) }
     }
     Button(
       onClick = { vm.navigate(if (state.session.loggedIn) Screen.TrainingMenu else Screen.Settings) },
@@ -484,7 +484,7 @@ private fun MusicScreen(state: AppState, vm: AppViewModel) {
             enabled = selectedPlaylistId.isNotBlank() && orderedTracks.isNotEmpty(),
             shape = RoundedCornerShape(8.dp),
           ) {
-            Text("▶ Play")
+            Text("▶ 再生")
           }
         }
         Spacer(Modifier.height(16.dp))
@@ -610,8 +610,8 @@ private fun BodyCheckScreen(state: AppState, vm: AppViewModel) {
     Text("トレーニング前の身体チェック", fontSize = 32.sp, fontWeight = FontWeight.Bold)
     Text("安全にトレーニングを行うために数値を入力してください。", color = Muted)
     Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-      RequiredNumberCard("血圧上限", high) { high = it.filter(Char::isDigit).take(3) }
-      RequiredNumberCard("血圧下限", low) { low = it.filter(Char::isDigit).take(3) }
+      RequiredNumberCard("最高血圧", high) { high = it.filter(Char::isDigit).take(3) }
+      RequiredNumberCard("最低血圧", low) { low = it.filter(Char::isDigit).take(3) }
       RequiredNumberCard("心拍数", pulse) { pulse = it.filter(Char::isDigit).take(3) }
     }
     Button(
@@ -626,7 +626,7 @@ private fun BodyCheckScreen(state: AppState, vm: AppViewModel) {
     ) {
       Text("開始", fontSize = 34.sp, fontWeight = FontWeight.Bold)
     }
-    Text("ⓘ 体調がすぐれない場合は無理をせず、休息を取りましょう。", color = Muted)
+    Text("ⓘ 体調がすぐれない場合は無理をせず、休憩を取りましょう。", color = Muted)
   }
 }
 
@@ -658,8 +658,8 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
   Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
     GlassPanel(Modifier.weight(0.9f).fillMaxHeight()) {
       Column {
-        Text("器械号", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text("今日選択した器械だけを表示", color = Muted)
+        Text("マシン番号", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("今日選択したマシンだけを表示", color = Muted)
         Spacer(Modifier.height(20.dp))
         MachineGrid(workoutMachines, state.selectedMachine, state.workoutSets, vm::selectMachine)
         Spacer(Modifier.weight(1f))
@@ -671,7 +671,7 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
           MachineImage(state.selectedMachine, Modifier.size(112.dp))
           Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-              "${state.selectedMachine.number}号机 / ${state.selectedMachine.name}",
+              "${state.selectedMachine.number}号機 / ${state.selectedMachine.name}",
               fontSize = 28.sp,
               lineHeight = 31.sp,
               fontWeight = FontWeight.Bold,
@@ -684,7 +684,7 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
               horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
               Text(
-                "第 ${machineSets.size + 1} / ${state.selectedMachine.targetSets} 组",
+                "${machineSets.size + 1} / ${state.selectedMachine.targetSets} セット目",
                 fontSize = 28.sp,
                 color = Blue,
                 fontWeight = FontWeight.Bold,
@@ -693,7 +693,7 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
                   .background(Color(0x66101C2D))
                   .padding(horizontal = 14.dp, vertical = 10.dp),
               )
-              Text("当前", fontSize = 18.sp, color = Blue, fontWeight = FontWeight.Bold)
+              Text("現在", fontSize = 18.sp, color = Blue, fontWeight = FontWeight.Bold)
             }
           }
         }
@@ -706,7 +706,7 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
             plus = { weight = ((weight.toIntOrNull() ?: 0) + 5).toString() },
           )
           NumberInputStepper(
-            title = "回数 (次)",
+            title = "回数",
             value = reps,
             onValueChange = { reps = it },
             minus = { reps = ((reps.toIntOrNull() ?: 0) - 1).coerceAtLeast(0).toString() },
@@ -726,7 +726,7 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
           enabled = machineSets.size < state.selectedMachine.targetSets,
           shape = RoundedCornerShape(8.dp),
         ) {
-          Text("✓ 完成本组", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+          Text("✓ このセットを完了", fontSize = 28.sp, fontWeight = FontWeight.Bold)
         }
         Button(onClick = { vm.navigate(Screen.FinishBody) }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B2A3D))) {
           Text("終了")
@@ -740,8 +740,8 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
             val isRestActive = state.restRemaining > 0 || state.isRestAlarmRinging
             Text(
               when {
-                state.isRestAlarmRinging -> "⏰ 休息終了"
-                state.restRemaining > 0 -> "☕ 休息中"
+                state.isRestAlarmRinging -> "⏰ 休憩終了"
+                state.restRemaining > 0 -> "☕ 休憩中"
                 else -> "トレーニング中"
               },
               fontSize = 24.sp,
@@ -778,17 +778,17 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
       }
       GlassPanel(Modifier.weight(1f).fillMaxWidth()) {
         Column {
-          Text("本机组历史", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+          Text("このマシンの履歴", fontSize = 22.sp, fontWeight = FontWeight.Bold)
           Spacer(Modifier.height(10.dp))
           (1..state.selectedMachine.targetSets).forEach { index ->
             val set = machineSets.getOrNull(index - 1)
-            Text("$index    ${set?.let { displayWeightFromLb(it.weightKg, state.weightUnit) } ?: "–"} ${state.weightUnit.label} / ${set?.reps ?: "–"} 次    ${if (set != null) "✓" else "○"}", fontSize = 20.sp, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (index == machineSets.size + 1) Color(0x553F63FF) else Panel2).padding(14.dp))
+            Text("$index    ${set?.let { displayWeightFromLb(it.weightKg, state.weightUnit) } ?: "–"} ${state.weightUnit.label} / ${set?.reps ?: "–"} 回    ${if (set != null) "✓" else "○"}", fontSize = 20.sp, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (index == machineSets.size + 1) Color(0x553F63FF) else Panel2).padding(14.dp))
             Spacer(Modifier.height(8.dp))
           }
         }
       }
       GlassPanel(Modifier.fillMaxWidth().height(86.dp)) {
-        Text("总组数   ${state.selectedMachine.targetSets} 组", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Blue)
+        Text("合計セット数   ${state.selectedMachine.targetSets}", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Blue)
       }
     }
   }
@@ -835,7 +835,7 @@ private fun MachineGrid(machines: List<Machine>, current: Machine, sets: List<co
                 .clickable { onSelect(machine) },
               contentAlignment = Alignment.Center,
             ) { Text("${machine.number}", fontSize = 28.sp, fontWeight = FontWeight.Bold) }
-            Text(if (done) "✓" else if (machine.id == current.id) "当前" else "", color = if (done) Green else Blue)
+            Text(if (done) "✓" else if (machine.id == current.id) "現在" else "", color = if (done) Green else Blue)
           }
         }
       }
@@ -865,21 +865,42 @@ private fun NumberInputStepper(title: String, value: String, onValueChange: (Str
 @Composable
 private fun FinishBodyScreen(state: AppState, vm: AppViewModel) {
   var result by remember { mutableStateOf(BodyResult()) }
-  Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(18.dp)) {
     Text("今日の身体数値", fontSize = 32.sp, fontWeight = FontWeight.Bold)
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-      OutlinedTextField(result.muscleMassKg, { result = result.copy(muscleMassKg = it) }, label = { Text("筋肉量") })
-      OutlinedTextField(result.bodyWaterPercent, { result = result.copy(bodyWaterPercent = it) }, label = { Text("身体水分占比") })
-      OutlinedTextField(result.weightKg, { result = result.copy(weightKg = it) }, label = { Text("体重 (kg)") })
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+      BodyMetricInput("体重 (kg)", result.weightKg, { result = result.copy(weightKg = it) }, Modifier.weight(1f))
+      BodyMetricInput("体脂肪率 (%)", result.bodyFatPercent, { result = result.copy(bodyFatPercent = it) }, Modifier.weight(1f))
+      BodyMetricInput("筋肉量 (kg)", result.muscleMassKg, { result = result.copy(muscleMassKg = it) }, Modifier.weight(1f))
+      BodyMetricInput("体水分率 (%)", result.bodyWaterPercent, { result = result.copy(bodyWaterPercent = it) }, Modifier.weight(1f))
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+      BodyMetricInput("BMI", result.bmi, { result = result.copy(bmi = it) }, Modifier.weight(1f))
+      BodyMetricInput("基礎代謝量", result.basalMetabolism, { result = result.copy(basalMetabolism = it) }, Modifier.weight(1f))
+      BodyMetricInput("内臓脂肪", result.visceralFat, { result = result.copy(visceralFat = it) }, Modifier.weight(1f))
+      Spacer(Modifier.weight(1f))
     }
     Button(onClick = { vm.saveFinishedWorkout(result) }, modifier = Modifier.width(260.dp).height(64.dp), shape = RoundedCornerShape(8.dp)) { Text("保存") }
   }
 }
 
 @Composable
+private fun BodyMetricInput(label: String, value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
+  OutlinedTextField(
+    value = value,
+    onValueChange = { raw -> onValueChange(raw.filter { it.isDigit() || it == '.' }.take(8)) },
+    label = { Text(label) },
+    singleLine = true,
+    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+    textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+    modifier = modifier,
+  )
+}
+
+@Composable
 private fun HistoryScreen(state: AppState, vm: AppViewModel) {
   val initialDate = state.sessions.firstOrNull()?.date ?: LocalDate.now()
   var selectedDate by remember(state.sessions) { mutableStateOf(initialDate) }
+  var displayedMonth by remember(selectedDate) { mutableStateOf(selectedDate.withDayOfMonth(1)) }
   val daySessions = state.sessions.filter { it.date == selectedDate }.sortedBy { it.startedAt }
   var selectedSessionId by remember(selectedDate, daySessions) { mutableStateOf(daySessions.firstOrNull()?.id.orEmpty()) }
   val selectedSession = daySessions.firstOrNull { it.id == selectedSessionId } ?: daySessions.firstOrNull()
@@ -888,13 +909,21 @@ private fun HistoryScreen(state: AppState, vm: AppViewModel) {
     GlassPanel(Modifier.width(300.dp).fillMaxHeight()) {
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("履歴", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        CompactCalendarGrid(state.sessions.map { it.date }.toSet(), selectedDate) { selectedDate = it }
+        CompactCalendarGrid(
+          marked = state.sessions.map { it.date }.toSet(),
+          month = displayedMonth,
+          selected = selectedDate,
+          onMonthChange = { month ->
+            displayedMonth = month
+            selectedDate = state.sessions.map { it.date }.filter { it.year == month.year && it.monthValue == month.monthValue }.minOrNull() ?: month
+          },
+        ) { selectedDate = it }
         Text("選択日: $selectedDate", color = Muted)
       }
     }
     GlassPanel(Modifier.weight(1f).fillMaxHeight()) {
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("完了した workoutSessions", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("完了したトレーニング", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Text("${daySessions.size} 件", color = Muted)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
           items(daySessions) { session ->
@@ -911,7 +940,7 @@ private fun HistoryScreen(state: AppState, vm: AppViewModel) {
             ) {
               Column(Modifier.weight(1f)) {
                 Text("ID ${session.id.take(8)}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("${session.startedAt.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${session.endedAt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"} 完了 / ${sets.size} 組", color = Muted)
+                Text("${session.startedAt.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${session.endedAt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"} 完了 / ${sets.size} セット", color = Muted)
               }
               Text("削除", color = Color(0xFFFF8A80), fontWeight = FontWeight.Bold, modifier = Modifier.clickable { vm.deleteWorkoutSession(session.id) })
             }
@@ -921,44 +950,49 @@ private fun HistoryScreen(state: AppState, vm: AppViewModel) {
     }
     GlassPanel(Modifier.weight(1f).fillMaxHeight()) {
       Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("workoutSessions 详情", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("トレーニング詳細", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         if (selectedSession == null) {
           Text("この日に運動記録はありません。", color = Muted)
         } else {
           Text("ID ${selectedSession.id}", color = Muted, fontSize = 12.sp)
-          Text("运动前数据", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-          SummaryLine("血压", "${selectedSession.systolic} / ${selectedSession.diastolic}")
+          Text("トレーニング前", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+          SummaryLine("血圧", "${selectedSession.systolic} / ${selectedSession.diastolic}")
           SummaryLine("心拍数", "${selectedSession.pulse} bpm")
-          SummaryLine("开始时间", selectedSession.startedAt.format(DateTimeFormatter.ofPattern("HH:mm")))
+          SummaryLine("開始時間", selectedSession.startedAt.format(DateTimeFormatter.ofPattern("HH:mm")))
           Spacer(Modifier.height(8.dp))
-          Text("sets 数据集", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+          Text("セット記録", fontSize = 20.sp, fontWeight = FontWeight.Bold)
           selectedSessionSets.groupBy { it.machineId }.values.forEach { machineSets ->
             val first = machineSets.first()
-            Text("${first.machineNumber}号机 / ${first.machineName}", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("${first.machineNumber}号機 / ${first.machineName}", fontSize = 22.sp, fontWeight = FontWeight.Bold)
             machineSets.sortedBy { it.setIndex }.forEach { set ->
               SummaryLine(
-                "第 ${set.setIndex} 组",
-                "${displayWeightFromLb(set.weightKg, WeightUnit.KG)} kg / ${set.reps} 次 / ${set.completedAt.format(DateTimeFormatter.ofPattern("HH:mm"))} 完了",
+                "${set.setIndex}セット目",
+                "${displayWeightFromLb(set.weightKg, WeightUnit.KG)} kg / ${set.reps} 回 / ${set.completedAt.format(DateTimeFormatter.ofPattern("HH:mm"))} 完了",
               )
             }
           }
           if (selectedSessionSets.isEmpty()) {
-            Text("sets は空です。", color = Muted)
+            Text("セット記録はありません。", color = Muted)
           }
           Spacer(Modifier.height(8.dp))
-          Text("运动后数据", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+          Text("トレーニング後", fontSize = 20.sp, fontWeight = FontWeight.Bold)
           SummaryLine("終了時間", selectedSession.endedAt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "-")
-          SummaryLine("肌肉量", selectedSession.muscleMassKg?.let { "%.1f kg".format(it) } ?: "-")
           SummaryLine("体重", selectedSession.weightKg?.let { "%.1f kg".format(it) } ?: "-")
-          SummaryLine("合計 Set 数", "${selectedSessionSets.groupBy { it.machineId }.size}")
-          SummaryLine("合計组数", "${selectedSessionSets.size}")
+          SummaryLine("体脂肪率", selectedSession.bodyFatPercent?.let { "%.1f %%".format(it) } ?: "-")
+          SummaryLine("筋肉量", selectedSession.muscleMassKg?.let { "%.1f kg".format(it) } ?: "-")
+          SummaryLine("体水分率", selectedSession.bodyWaterPercent?.let { "%.1f %%".format(it) } ?: "-")
+          SummaryLine("BMI", selectedSession.bmi?.let { "%.1f".format(it) } ?: "-")
+          SummaryLine("基礎代謝量", selectedSession.basalMetabolism?.let { "%.0f".format(it) } ?: "-")
+          SummaryLine("内臓脂肪", selectedSession.visceralFat?.let { "%.1f".format(it) } ?: "-")
+          SummaryLine("合計マシン数", "${selectedSessionSets.groupBy { it.machineId }.size}")
+          SummaryLine("合計セット数", "${selectedSessionSets.size}")
           Button(
             onClick = { vm.deleteWorkoutSession(selectedSession.id) },
             modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935), contentColor = Color.White),
           ) {
-            Text("この workoutSession を削除")
+            Text("この記録を削除")
           }
         }
       }
@@ -967,23 +1001,41 @@ private fun HistoryScreen(state: AppState, vm: AppViewModel) {
 }
 
 @Composable
-private fun CompactCalendarGrid(marked: Set<LocalDate>, selected: LocalDate, onSelect: (LocalDate) -> Unit) {
+private fun CompactCalendarGrid(
+  marked: Set<LocalDate>,
+  month: LocalDate,
+  selected: LocalDate,
+  onMonthChange: (LocalDate) -> Unit,
+  onSelect: (LocalDate) -> Unit,
+) {
   val today = LocalDate.now()
-  val first = today.withDayOfMonth(1)
-  val days = (1..first.lengthOfMonth()).map { first.withDayOfMonth(it) }
+  val first = month.withDayOfMonth(1)
+  val leadingBlanks = first.dayOfWeek.value - 1
+  val monthDays = (1..first.lengthOfMonth()).map { first.withDayOfMonth(it) }
+  val cells = (List<LocalDate?>(leadingBlanks) { null } + monthDays).let { days ->
+    days + List((7 - days.size % 7) % 7) { null }
+  }
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    Text("${today.year}年${today.monthValue}月", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-      listOf("月", "火", "水", "木", "金", "土", "日").forEach { Text(it, color = Muted, fontSize = 12.sp, modifier = Modifier.width(32.dp)) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+      Text("‹", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.width(42.dp).clickable { onMonthChange(first.minusMonths(1)) })
+      Text("${first.year}年${first.monthValue}月", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+      Text("›", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.width(42.dp).clickable { onMonthChange(first.plusMonths(1)) })
     }
-    days.chunked(7).forEach { week ->
-      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      listOf("月", "火", "水", "木", "金", "土", "日").forEach { Text(it, color = Muted, fontSize = 12.sp, modifier = Modifier.width(32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+    }
+    cells.chunked(7).forEach { week ->
+      Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         week.forEach { day ->
-          val isSelected = day == selected
-          Box(Modifier.size(32.dp).clip(CircleShape).background(if (isSelected) Blue else if (day == today) Green else Color.Transparent).clickable { onSelect(day) }, contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-              Text("${day.dayOfMonth}", color = if (isSelected || day == today) Color(0xFF06140B) else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-              Text(if (marked.contains(day)) "•" else "", color = Green)
+          if (day == null) {
+            Spacer(Modifier.size(32.dp))
+          } else {
+            val isSelected = day == selected
+            Box(Modifier.size(32.dp).clip(CircleShape).background(if (isSelected) Blue else if (day == today) Green else Color.Transparent).clickable { onSelect(day) }, contentAlignment = Alignment.Center) {
+              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("${day.dayOfMonth}", color = if (isSelected || day == today) Color(0xFF06140B) else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(if (marked.contains(day)) "•" else "", color = Green)
+              }
             }
           }
         }
@@ -1024,7 +1076,7 @@ private fun SettingsScreen(state: AppState, vm: AppViewModel) {
         Text("アプリ起動時はネットワーク確認を行わず、ログアウトするまでローカル保存データで利用できます。", color = Muted)
         Spacer(Modifier.height(18.dp))
         Text("重量単位", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Text("器械重量だけに適用します。学生の体重は常に kg で保存・表示します。", color = Muted)
+        Text("マシン重量だけに適用します。利用者の体重は常に kg で保存・表示します。", color = Muted)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
           WeightUnit.values().forEach { unit ->
             val selected = state.weightUnit == unit
