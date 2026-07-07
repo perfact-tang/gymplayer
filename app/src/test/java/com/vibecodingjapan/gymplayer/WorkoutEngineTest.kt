@@ -22,4 +22,18 @@ class WorkoutEngineTest {
     assertEquals(1, state.completedSets.size)
     assertEquals(2, state.activeSet)
   }
+
+  @Test
+  fun machineWeightDisplayFollowsSelectedUnit() {
+    assertEquals(100, displayWeightFromLb(100, WeightUnit.LB))
+    assertEquals(45, displayWeightFromLb(100, WeightUnit.KG))
+  }
+
+  @Test
+  fun bodyWeightDisplayRemainsKilograms() {
+    val session = WorkoutSession(uid = "local", weightKg = 72.5, muscleMassKg = 31.2)
+
+    assertEquals("72.5 kg", session.weightKg?.let { "%.1f kg".format(it) })
+    assertEquals("31.2 kg", session.muscleMassKg?.let { "%.1f kg".format(it) })
+  }
 }

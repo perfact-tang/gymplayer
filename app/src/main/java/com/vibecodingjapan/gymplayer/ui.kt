@@ -148,10 +148,10 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
               val event = intent.mediaKeyEvent ?: return false
               if (event.action != KeyEvent.ACTION_DOWN) return true
               when (event.keyCode) {
-                KeyEvent.KEYCODE_MEDIA_PLAY -> appViewModel.setPlaying(true)
+                KeyEvent.KEYCODE_MEDIA_PLAY -> appViewModel.handleMediaPlayPauseCommand(playingWhenNotResting = true)
                 KeyEvent.KEYCODE_MEDIA_PAUSE -> appViewModel.setPlaying(false)
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                KeyEvent.KEYCODE_HEADSETHOOK -> appViewModel.togglePlay()
+                KeyEvent.KEYCODE_HEADSETHOOK -> appViewModel.handleMediaPlayPauseCommand()
                 KeyEvent.KEYCODE_MEDIA_NEXT -> appViewModel.playNextTrack()
                 KeyEvent.KEYCODE_MEDIA_PREVIOUS -> appViewModel.playPreviousTrack()
                 else -> return false
@@ -691,12 +691,26 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
   var weight by remember(state.selectedMachine.id, state.weightUnit) { mutableStateOf(displayWeightFromLb(state.selectedMachine.defaultWeight, state.weightUnit).toString()) }
   var reps by remember(state.selectedMachine.id) { mutableStateOf("10") }
   var restSeconds by remember { mutableStateOf("50") }
+  var showAddMachineDialog by remember { mutableStateOf(false) }
   val workoutMachines = state.workoutMachines.ifEmpty { state.machines }
+  val addableMachines = state.machines.filterNot { machine -> state.selectedWorkoutMachineIds.contains(machine.id) }
   val machineSets = state.workoutSets.filter { it.machineId == state.selectedMachine.id }
   Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
     GlassPanel(Modifier.weight(0.92f).fillMaxHeight()) {
       Column {
-        Text("マシン番号", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+          Text("マシン番号", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+          Button(
+            onClick = { showAddMachineDialog = true },
+            enabled = addableMachines.isNotEmpty(),
+            shape = CircleShape,
+            modifier = Modifier.size(42.dp),
+            contentPadding = PaddingValues(0.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Panel3, contentColor = Color.White, disabledContainerColor = Panel2, disabledContentColor = Muted),
+          ) {
+            Text("+", fontSize = 24.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
+          }
+        }
         Text("今日選択したマシンだけを表示", color = Muted, fontSize = 13.sp)
         Spacer(Modifier.height(18.dp))
         MachineGrid(workoutMachines, state.selectedMachine, state.workoutSets, vm::selectMachine)
@@ -816,6 +830,58 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
       }
     }
   }
+  if (showAddMachineDialog) {
+    AddWorkoutMachineDialog(
+      machines = addableMachines,
+      onDismiss = { showAddMachineDialog = false },
+      onAdd = { machine ->
+        vm.addWorkoutMachine(machine)
+        showAddMachineDialog = false
+      },
+    )
+  }
+}
+
+@Composable
+private fun AddWorkoutMachineDialog(machines: List<Machine>, onDismiss: () -> Unit, onAdd: (Machine) -> Unit) {
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("マシンを追加") },
+    text = {
+      if (machines.isEmpty()) {
+        Text("追加できるマシンはありません。", color = Muted)
+      } else {
+        LazyColumn(Modifier.height(420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          items(machines) { machine ->
+            Row(
+              Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Panel2)
+                .border(1.dp, Line, RoundedCornerShape(8.dp))
+                .clickable { onAdd(machine) }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+              Text("${machine.number}", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(40.dp))
+              Text(machine.icon, fontSize = 22.sp, modifier = Modifier.width(36.dp))
+              Column(Modifier.weight(1f)) {
+                Text(machine.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(machine.bodyPart, color = Muted, fontSize = 12.sp)
+              }
+              Text("+", color = Green, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            }
+          }
+        }
+      }
+    },
+    confirmButton = {
+      Button(onClick = onDismiss, shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Panel3)) {
+        Text("閉じる")
+      }
+    },
+  )
 }
 
 @Composable
@@ -999,7 +1065,7 @@ private fun HistoryScreen(state: AppState, vm: AppViewModel) {
             machineSets.sortedBy { it.setIndex }.forEach { set ->
               SummaryLine(
                 "${set.setIndex}セット目",
-                "${displayWeightFromLb(set.weightKg, WeightUnit.KG)} kg / ${set.reps} 回 / ${set.completedAt.format(DateTimeFormatter.ofPattern("HH:mm"))} 完了",
+                "${displayWeightFromLb(set.weightKg, state.weightUnit)} ${state.weightUnit.label} / ${set.reps} 回 / ${set.completedAt.format(DateTimeFormatter.ofPattern("HH:mm"))} 完了",
               )
             }
           }

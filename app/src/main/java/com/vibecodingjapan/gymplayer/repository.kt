@@ -316,6 +316,15 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     }
   }
 
+  fun addWorkoutMachine(machine: Machine) {
+    _state.update { current ->
+      current.copy(
+        selectedWorkoutMachineIds = (current.selectedWorkoutMachineIds + machine.id).distinct(),
+        selectedMachine = machine,
+      )
+    }
+  }
+
   fun startSelectedWorkout() {
     val current = _state.value
     val workoutMachines = current.workoutMachines
@@ -342,9 +351,33 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     }
   }
 
+  fun handleMediaPlayPauseCommand(playingWhenNotResting: Boolean? = null) {
+    _state.update { current ->
+      if (current.restRemaining > 0 || current.isRestAlarmRinging) {
+        current.copy(
+          restRemaining = 0,
+          isRestAlarmRinging = false,
+          isPlaying = current.currentTrack != null,
+          resumeMusicAfterAlarm = false,
+        )
+      } else if (current.currentTrack == null) {
+        current
+      } else {
+        current.copy(isPlaying = playingWhenNotResting ?: !current.isPlaying)
+      }
+    }
+  }
+
   fun setPlaying(playing: Boolean) {
     _state.update { current ->
-      if (current.currentTrack == null) current else current.copy(isPlaying = playing)
+      if (current.currentTrack == null) {
+        current
+      } else {
+        current.copy(
+          isPlaying = playing,
+          resumeMusicAfterAlarm = if (current.restRemaining > 0 && !playing) false else current.resumeMusicAfterAlarm,
+        )
+      }
     }
   }
 
@@ -445,12 +478,14 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     val set = WorkoutSet(sessionId = "draft", machineId = machine.id, machineNumber = machine.number, machineName = machine.name, setIndex = nextSet, weightKg = displayWeightToLb(weight, _state.value.weightUnit), reps = reps)
     val restDuration = restSeconds.coerceIn(1, 999)
     _state.update {
+      val startsRest = nextSet < machine.targetSets
       it.copy(
         workoutSets = it.workoutSets + set,
-        restRemaining = if (nextSet < machine.targetSets) restDuration else 0,
+        restRemaining = if (startsRest) restDuration else 0,
         restDurationSeconds = restDuration,
         isRestAlarmRinging = false,
-        resumeMusicAfterAlarm = false,
+        resumeMusicAfterAlarm = startsRest && it.isPlaying,
+        isPlaying = it.isPlaying,
       )
     }
   }
@@ -461,7 +496,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
         it.copy(
           restRemaining = 0,
           isRestAlarmRinging = true,
-          resumeMusicAfterAlarm = it.isPlaying,
+          resumeMusicAfterAlarm = it.resumeMusicAfterAlarm,
           isPlaying = false,
         )
       } else {
