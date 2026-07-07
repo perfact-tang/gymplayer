@@ -51,6 +51,13 @@ data class WorkoutSession(
   val synced: Boolean = false,
 )
 
+data class ActiveWorkoutDraft(
+  val selectedMachineIds: List<String> = emptyList(),
+  val selectedMachineId: String = "",
+  val bodyCheck: BodyCheck = BodyCheck(),
+  val restDurationSeconds: Int = 50,
+)
+
 data class Playlist(val id: String = UUID.randomUUID().toString(), val name: String, val folderUri: String = "", val createdAt: Long = System.currentTimeMillis())
 
 data class Track(

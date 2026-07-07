@@ -5,15 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3ba00041-50c0-4003-bf3f-7129c781fd14" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/local.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/local.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/model.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/model.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/repository.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/repository.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/test/java/com/vibecodingjapan/gymplayer/WorkoutEngineTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/test/java/com/vibecodingjapan/gymplayer/WorkoutEngineTest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DataDesign.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DataDesign.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/training-menu-importer/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/tools/training-menu-importer/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/training-menu-importer/sample-training-menu.csv" beforeDir="false" afterPath="$PROJECT_DIR$/tools/training-menu-importer/sample-training-menu.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/training-menu-importer/src/importTrainingMenu.js" beforeDir="false" afterPath="$PROJECT_DIR$/tools/training-menu-importer/src/importTrainingMenu.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

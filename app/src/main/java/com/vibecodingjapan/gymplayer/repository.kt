@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -32,6 +33,7 @@ import java.text.Normalizer
 import kotlin.random.Random
 
 private val Context.sessionStore by preferencesDataStore("session")
+private const val ACTIVE_WORKOUT_DRAFT_ID = "active"
 
 class GymRepository(private val context: Context) {
   private val auth = FirebaseAuth.getInstance()
@@ -40,7 +42,7 @@ class GymRepository(private val context: Context) {
   private val db =
     Room.databaseBuilder(context, GymPlayerDatabase::class.java, "gymplayer.db")
       .fallbackToDestructiveMigration(false)
-      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
       .build()
   private val dao = db.dao()
   private val uidKey = stringPreferencesKey("uid")
@@ -93,6 +95,23 @@ class GymRepository(private val context: Context) {
       rows.map { WorkoutSet(it.id, it.sessionId, it.machineId, it.machineNumber, it.machineName, it.setIndex, it.weightKg, it.reps, LocalDateTime.parse(it.completedAt)) }
     }
 
+  val activeWorkoutDraft: Flow<ActiveWorkoutDraft?> =
+    dao.activeWorkoutDraft(ACTIVE_WORKOUT_DRAFT_ID).map { row ->
+      row?.let {
+        ActiveWorkoutDraft(
+          selectedMachineIds = it.selectedMachineIds.split(",").filter(String::isNotBlank),
+          selectedMachineId = it.selectedMachineId,
+          bodyCheck = BodyCheck(it.systolic, it.diastolic, it.pulse),
+          restDurationSeconds = it.restDurationSeconds,
+        )
+      }
+    }
+
+  val activeWorkoutDraftSets: Flow<List<WorkoutSet>> =
+    dao.workoutSets(ACTIVE_WORKOUT_DRAFT_ID).map { rows ->
+      rows.map { WorkoutSet(it.id, it.sessionId, it.machineId, it.machineNumber, it.machineName, it.setIndex, it.weightKg, it.reps, LocalDateTime.parse(it.completedAt)) }
+    }
+
   val playlists: Flow<List<Playlist>> =
     dao.playlists().map { rows ->
       rows.map { Playlist(it.id, it.name, it.folderUri, it.createdAt) }
@@ -132,6 +151,17 @@ class GymRepository(private val context: Context) {
   suspend fun saveWorkout(session: WorkoutSession, sets: List<WorkoutSet>) {
     dao.upsertSession(session.toEntity())
     dao.upsertSets(sets.map { it.toEntity() })
+  }
+
+  suspend fun saveActiveWorkoutDraft(draft: ActiveWorkoutDraft, sets: List<WorkoutSet>) {
+    dao.upsertActiveWorkoutDraft(draft.toEntity())
+    dao.deleteWorkoutSetsForSession(ACTIVE_WORKOUT_DRAFT_ID)
+    dao.upsertSets(sets.map { it.copy(sessionId = ACTIVE_WORKOUT_DRAFT_ID).toEntity() })
+  }
+
+  suspend fun clearActiveWorkoutDraft() {
+    dao.deleteWorkoutSetsForSession(ACTIVE_WORKOUT_DRAFT_ID)
+    dao.deleteActiveWorkoutDraft(ACTIVE_WORKOUT_DRAFT_ID)
   }
 
   suspend fun deleteWorkoutSet(setId: String) {
@@ -268,7 +298,11 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
         _state.update {
           it.copy(
             machines = machines,
-            selectedMachine = machines.firstOrNull { machine -> machine.id == it.selectedMachine.id } ?: machines.firstOrNull() ?: it.selectedMachine,
+            selectedMachine =
+              machines.firstOrNull { machine -> machine.id == it.selectedMachine.id }
+                ?: machines.firstOrNull { machine -> it.selectedWorkoutMachineIds.contains(machine.id) }
+                ?: machines.firstOrNull()
+                ?: it.selectedMachine,
           ).withPreviousMenuDefault()
         }
       }
@@ -278,6 +312,10 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     viewModelScope.launch { repository.playlists.collect { playlists -> _state.update { it.copy(playlists = playlists) } } }
     viewModelScope.launch { repository.allTracks.collect { tracks -> _state.update { it.copy(tracks = tracks) } } }
     viewModelScope.launch { repository.weightUnit.collect { unit -> _state.update { it.copy(weightUnit = unit) } } }
+    viewModelScope.launch {
+      combine(repository.activeWorkoutDraft, repository.activeWorkoutDraftSets) { draft, sets -> draft to sets }
+        .collect { (draft, sets) -> restoreActiveWorkoutIfReady(draft, sets) }
+    }
   }
 
   fun navigate(screen: Screen) {
@@ -298,10 +336,12 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
 
   fun setBodyCheck(check: BodyCheck) {
     _state.update { it.copy(bodyCheck = check) }
+    persistActiveWorkoutDraft()
   }
 
   fun selectMachine(machine: Machine) {
     _state.update { it.copy(selectedMachine = machine) }
+    persistActiveWorkoutDraft()
   }
 
   fun toggleWorkoutMachine(machine: Machine, checked: Boolean) {
@@ -314,6 +354,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
         }
       current.copy(selectedWorkoutMachineIds = selectedIds)
     }
+    persistActiveWorkoutDraft()
   }
 
   fun addWorkoutMachine(machine: Machine) {
@@ -321,6 +362,54 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
       current.copy(
         selectedWorkoutMachineIds = (current.selectedWorkoutMachineIds + machine.id).distinct(),
         selectedMachine = machine,
+      )
+    }
+    persistActiveWorkoutDraft()
+  }
+
+  private fun restoreActiveWorkoutIfReady(draft: ActiveWorkoutDraft?, sets: List<WorkoutSet>) {
+    if (draft == null || sets.isEmpty()) return
+    _state.update { current ->
+      if (current.hasActiveWorkout) {
+        current
+      } else {
+        val selectedIds =
+          draft.selectedMachineIds.ifEmpty { sets.map { it.machineId }.distinct() }
+        if (selectedIds.isEmpty()) {
+          current
+        } else {
+          val selectedMachine =
+            current.machines.firstOrNull { it.id == draft.selectedMachineId }
+              ?: current.machines.firstOrNull { it.id == selectedIds.first() }
+              ?: current.selectedMachine
+          current.copy(
+            workoutSets = sets.map { it.copy(sessionId = ACTIVE_WORKOUT_DRAFT_ID) },
+            selectedWorkoutMachineIds = selectedIds,
+            selectedMachine = selectedMachine,
+            bodyCheck = draft.bodyCheck,
+            restRemaining = 0,
+            restDurationSeconds = draft.restDurationSeconds,
+            isRestAlarmRinging = false,
+            resumeMusicAfterAlarm = false,
+            screen = Screen.Training,
+            message = "中断したトレーニングを復元しました",
+          )
+        }
+      }
+    }
+  }
+
+  private fun persistActiveWorkoutDraft(state: AppState = _state.value) {
+    if (state.workoutSets.isEmpty()) return
+    launchSafe {
+      repository.saveActiveWorkoutDraft(
+        ActiveWorkoutDraft(
+          selectedMachineIds = state.selectedWorkoutMachineIds,
+          selectedMachineId = state.selectedMachine.id,
+          bodyCheck = state.bodyCheck,
+          restDurationSeconds = state.restDurationSeconds,
+        ),
+        state.workoutSets,
       )
     }
   }
@@ -475,7 +564,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     val machine = _state.value.selectedMachine
     val nextSet = _state.value.workoutSets.count { it.machineId == machine.id } + 1
     if (nextSet > machine.targetSets) return
-    val set = WorkoutSet(sessionId = "draft", machineId = machine.id, machineNumber = machine.number, machineName = machine.name, setIndex = nextSet, weightKg = displayWeightToLb(weight, _state.value.weightUnit), reps = reps)
+    val set = WorkoutSet(sessionId = ACTIVE_WORKOUT_DRAFT_ID, machineId = machine.id, machineNumber = machine.number, machineName = machine.name, setIndex = nextSet, weightKg = displayWeightToLb(weight, _state.value.weightUnit), reps = reps)
     val restDuration = restSeconds.coerceIn(1, 999)
     _state.update {
       val startsRest = nextSet < machine.targetSets
@@ -488,6 +577,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
         isPlaying = it.isPlaying,
       )
     }
+    persistActiveWorkoutDraft()
   }
 
   fun tickRest() {
@@ -538,6 +628,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
           visceralFat = result.visceralFat.toDoubleOrNull(),
         )
       repository.saveWorkout(session, current.workoutSets.map { it.copy(sessionId = session.id) })
+      repository.clearActiveWorkoutDraft()
       _state.update { it.copy(workoutSets = emptyList(), selectedWorkoutMachineIds = emptyList(), message = "今日のトレーニングを保存しました", screen = Screen.History) }
     }
   }
@@ -692,6 +783,17 @@ private fun androidx.lifecycle.ViewModel.launchSafe(block: suspend () -> Unit) {
 private fun Machine.toEntity() = MachineEntity(id, number, name, bodyPart, icon, targetSets, defaultWeight, imageStorageUrl, localImagePath, updatedAt)
 private fun Playlist.toEntity() = PlaylistEntity(id, name, folderUri, createdAt)
 private fun Track.toEntity() = TrackEntity(id, playlistId, uri, title, artist, durationMs, orderIndex)
+private fun ActiveWorkoutDraft.toEntity() =
+  ActiveWorkoutDraftEntity(
+    id = ACTIVE_WORKOUT_DRAFT_ID,
+    selectedMachineIds = selectedMachineIds.joinToString(","),
+    selectedMachineId = selectedMachineId,
+    systolic = bodyCheck.systolic,
+    diastolic = bodyCheck.diastolic,
+    pulse = bodyCheck.pulse,
+    restDurationSeconds = restDurationSeconds,
+    updatedAt = System.currentTimeMillis(),
+  )
 private fun WorkoutSession.toEntity() =
   WorkoutSessionEntity(
     id,

@@ -62,6 +62,18 @@ data class WorkoutSetEntity(
   val completedAt: String,
 )
 
+@Entity(tableName = "active_workout_drafts")
+data class ActiveWorkoutDraftEntity(
+  @PrimaryKey val id: String,
+  val selectedMachineIds: String,
+  val selectedMachineId: String,
+  val systolic: Int,
+  val diastolic: Int,
+  val pulse: Int,
+  val restDurationSeconds: Int,
+  val updatedAt: Long,
+)
+
 @Entity(tableName = "deleted_workout_sessions")
 data class DeletedWorkoutSessionEntity(@PrimaryKey val id: String, val uid: String, val deletedAt: Long)
 
@@ -115,6 +127,15 @@ interface GymPlayerDao {
   @Query("DELETE FROM workout_sessions WHERE id = :sessionId")
   suspend fun deleteWorkoutSession(sessionId: String)
 
+  @Query("SELECT * FROM active_workout_drafts WHERE id = :id LIMIT 1")
+  fun activeWorkoutDraft(id: String): Flow<ActiveWorkoutDraftEntity?>
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun upsertActiveWorkoutDraft(draft: ActiveWorkoutDraftEntity)
+
+  @Query("DELETE FROM active_workout_drafts WHERE id = :id")
+  suspend fun deleteActiveWorkoutDraft(id: String)
+
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun upsertDeletedWorkoutSession(session: DeletedWorkoutSessionEntity)
 
@@ -150,8 +171,8 @@ interface GymPlayerDao {
 }
 
 @Database(
-  entities = [UserSessionEntity::class, MachineEntity::class, WorkoutSessionEntity::class, WorkoutSetEntity::class, DeletedWorkoutSessionEntity::class, PlaylistEntity::class, TrackEntity::class],
-  version = 5,
+  entities = [UserSessionEntity::class, MachineEntity::class, WorkoutSessionEntity::class, WorkoutSetEntity::class, ActiveWorkoutDraftEntity::class, DeletedWorkoutSessionEntity::class, PlaylistEntity::class, TrackEntity::class],
+  version = 6,
   exportSchema = false,
 )
 abstract class GymPlayerDatabase : RoomDatabase() {
@@ -236,5 +257,25 @@ val MIGRATION_4_5 =
       )
       db.execSQL("DROP TABLE workout_sets")
       db.execSQL("ALTER TABLE workout_sets_new RENAME TO workout_sets")
+    }
+  }
+
+val MIGRATION_5_6 =
+  object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS active_workout_drafts (
+          id TEXT NOT NULL PRIMARY KEY,
+          selectedMachineIds TEXT NOT NULL,
+          selectedMachineId TEXT NOT NULL,
+          systolic INTEGER NOT NULL,
+          diastolic INTEGER NOT NULL,
+          pulse INTEGER NOT NULL,
+          restDurationSeconds INTEGER NOT NULL,
+          updatedAt INTEGER NOT NULL
+        )
+        """.trimIndent(),
+      )
     }
   }
