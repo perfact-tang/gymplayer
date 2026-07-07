@@ -18,7 +18,7 @@ data class UserSessionEntity(@PrimaryKey val uid: String, val email: String, val
 @Entity(tableName = "machines")
 data class MachineEntity(
   @PrimaryKey val id: String,
-  val number: Int,
+  val number: String,
   val name: String,
   val bodyPart: String,
   val icon: String,
@@ -54,7 +54,7 @@ data class WorkoutSetEntity(
   @PrimaryKey val id: String,
   val sessionId: String,
   val machineId: String,
-  val machineNumber: Int,
+  val machineNumber: String,
   val machineName: String,
   val setIndex: Int,
   val weightKg: Int,
@@ -73,7 +73,7 @@ data class TrackEntity(@PrimaryKey val id: String, val playlistId: String, val u
 
 @Dao
 interface GymPlayerDao {
-  @Query("SELECT * FROM machines ORDER BY number")
+  @Query("SELECT * FROM machines ORDER BY CAST(number AS INTEGER), number")
   fun machines(): Flow<List<MachineEntity>>
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -151,7 +151,7 @@ interface GymPlayerDao {
 
 @Database(
   entities = [UserSessionEntity::class, MachineEntity::class, WorkoutSessionEntity::class, WorkoutSetEntity::class, DeletedWorkoutSessionEntity::class, PlaylistEntity::class, TrackEntity::class],
-  version = 4,
+  version = 5,
   exportSchema = false,
 )
 abstract class GymPlayerDatabase : RoomDatabase() {
@@ -180,5 +180,61 @@ val MIGRATION_3_4 =
       db.execSQL("ALTER TABLE workout_sessions ADD COLUMN bmi REAL")
       db.execSQL("ALTER TABLE workout_sessions ADD COLUMN basalMetabolism REAL")
       db.execSQL("ALTER TABLE workout_sessions ADD COLUMN visceralFat REAL")
+    }
+  }
+
+val MIGRATION_4_5 =
+  object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL(
+        """
+        CREATE TABLE machines_new (
+          id TEXT NOT NULL PRIMARY KEY,
+          number TEXT NOT NULL,
+          name TEXT NOT NULL,
+          bodyPart TEXT NOT NULL,
+          icon TEXT NOT NULL,
+          targetSets INTEGER NOT NULL,
+          defaultWeight INTEGER NOT NULL,
+          imageStorageUrl TEXT,
+          localImagePath TEXT,
+          updatedAt INTEGER NOT NULL
+        )
+        """.trimIndent(),
+      )
+      db.execSQL(
+        """
+        INSERT INTO machines_new (id, number, name, bodyPart, icon, targetSets, defaultWeight, imageStorageUrl, localImagePath, updatedAt)
+        SELECT id, CAST(number AS TEXT), name, bodyPart, icon, targetSets, defaultWeight, imageStorageUrl, localImagePath, updatedAt
+        FROM machines
+        """.trimIndent(),
+      )
+      db.execSQL("DROP TABLE machines")
+      db.execSQL("ALTER TABLE machines_new RENAME TO machines")
+
+      db.execSQL(
+        """
+        CREATE TABLE workout_sets_new (
+          id TEXT NOT NULL PRIMARY KEY,
+          sessionId TEXT NOT NULL,
+          machineId TEXT NOT NULL,
+          machineNumber TEXT NOT NULL,
+          machineName TEXT NOT NULL,
+          setIndex INTEGER NOT NULL,
+          weightKg INTEGER NOT NULL,
+          reps INTEGER NOT NULL,
+          completedAt TEXT NOT NULL
+        )
+        """.trimIndent(),
+      )
+      db.execSQL(
+        """
+        INSERT INTO workout_sets_new (id, sessionId, machineId, machineNumber, machineName, setIndex, weightKg, reps, completedAt)
+        SELECT id, sessionId, machineId, CAST(machineNumber AS TEXT), machineName, setIndex, weightKg, reps, completedAt
+        FROM workout_sets
+        """.trimIndent(),
+      )
+      db.execSQL("DROP TABLE workout_sets")
+      db.execSQL("ALTER TABLE workout_sets_new RENAME TO workout_sets")
     }
   }

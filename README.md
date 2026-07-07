@@ -124,7 +124,7 @@ gs://your-project-id.appspot.com/machines/chest_press.png
 
 | フィールド | 型 | 説明 |
 | --- | --- | --- |
-| `number` | number | マシン番号 |
+| `number` | string | マシン番号。例: `11`、`11a`、`11b` |
 | `name` | string | マシン名 |
 | `bodyPart` | string | 対象部位 |
 | `icon` | string | 表示用アイコン |
@@ -137,7 +137,7 @@ gs://your-project-id.appspot.com/machines/chest_press.png
 
 ```json
 {
-  "number": 1,
+  "number": "11a",
   "name": "Chest Press",
   "bodyPart": "Chest",
   "icon": "🏋",

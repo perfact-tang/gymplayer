@@ -9,7 +9,7 @@ data class UserSession(val uid: String = "", val email: String = "", val loggedI
 
 data class Machine(
   val id: String,
-  val number: Int,
+  val number: String,
   val name: String,
   val bodyPart: String,
   val icon: String,
@@ -24,7 +24,7 @@ data class WorkoutSet(
   val id: String = UUID.randomUUID().toString(),
   val sessionId: String,
   val machineId: String,
-  val machineNumber: Int,
+  val machineNumber: String,
   val machineName: String,
   val setIndex: Int,
   val weightKg: Int,

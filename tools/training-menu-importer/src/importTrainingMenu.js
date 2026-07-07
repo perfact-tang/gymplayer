@@ -106,6 +106,19 @@ function parseInteger(value, field, rowNumber, fallback) {
   return parsed;
 }
 
+function parseMachineNumber(value, rowNumber) {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    throw new Error(`Row ${rowNumber}: number is required`);
+  }
+
+  const number = String(value).trim();
+  if (!/^\d+[A-Za-z]*$/.test(number)) {
+    throw new Error(`Row ${rowNumber}: number must start with digits and may end with letters, for example 11a`);
+  }
+
+  return number;
+}
+
 function parseTimestamp(value, rowNumber, fallback) {
   if (value === undefined || value === null || String(value).trim() === "") return fallback;
 
@@ -167,14 +180,13 @@ function normalizeRecords(records, options) {
     if (!name) throw new Error(`Row ${rowNumber}: name is required`);
     if (!bodyPart) throw new Error(`Row ${rowNumber}: bodyPart is required`);
 
-    const number = parseInteger(record.number, "number", rowNumber);
+    const number = parseMachineNumber(record.number, rowNumber);
     const targetSets = parseInteger(record.targetSets, "targetSets", rowNumber, 3);
     const defaultWeight = parseInteger(record.defaultWeight, "defaultWeight", rowNumber, 40);
     const updatedAt = parseTimestamp(record.updatedAt, rowNumber, now);
     const imageStorageUrl = buildImageStorageUrl(record.imageStorageUrl, id, rowNumber, options);
     const icon = String(record.icon ?? "").trim() || "🏋";
 
-    if (number < 0) throw new Error(`Row ${rowNumber}: number must be 0 or greater`);
     if (targetSets <= 0) throw new Error(`Row ${rowNumber}: targetSets must be greater than 0`);
     if (defaultWeight < 0) throw new Error(`Row ${rowNumber}: defaultWeight must be 0 or greater`);
 

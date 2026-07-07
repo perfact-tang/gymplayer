@@ -15,6 +15,8 @@ GymPlayer is local-first. The app starts without network validation and writes w
 
 Machine/set weight values uploaded to Firestore are always stored in pounds (`lb`). The local UI setting controls machine weight display/input conversion only. Student body weight is always stored and displayed in kilograms (`kg`).
 
+Machine numbers are stored as strings because one physical machine can have multiple training menu entries for different body parts, such as `11a` and `11b`. Numeric-only legacy values are migrated and synced as their string equivalents.
+
 ## Firestore Collections
 
 User workout data is private and stored below the authenticated Firebase Auth uid.
@@ -44,7 +46,7 @@ Example workout document:
   "sets": [
     {
       "machineId": "machine-3",
-      "machineNumber": 3,
+      "machineNumber": "11a",
       "machineName": "チェストプレス",
       "setIndex": 1,
       "weightLb": 88,
@@ -67,7 +69,7 @@ Example machine document:
 
 ```json
 {
-  "number": 3,
+  "number": "11a",
   "name": "チェストプレス",
   "bodyPart": "胸部",
   "icon": "machine_chest_press",

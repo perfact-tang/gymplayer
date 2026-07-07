@@ -9,7 +9,7 @@ The GymPlayer app currently reads the training menu master data from the Firesto
 | Column | Required | Firestore field | Example |
 | --- | --- | --- | --- |
 | `id` | Yes | document id | `machine-44` |
-| `number` | Yes | `number` | `44` |
+| `number` | Yes | `number` | `44` or `11a` |
 | `name` | Yes | `name` | `レッグプレス` |
 | `bodyPart` | Yes | `bodyPart` | `脚` |
 | `icon` | No | `icon` | `🏋` |
@@ -19,6 +19,8 @@ The GymPlayer app currently reads the training menu master data from the Firesto
 | `updatedAt` | No | `updatedAt` | `1783242000000` |
 
 If `updatedAt` is empty, the importer uses the current timestamp for every row in that run.
+
+`number` is stored as a string so one physical machine can have multiple menu entries such as `11a` and `11b`. The value must start with digits and may end with letters. Keep each CSV `id` unique, for example `machine-11a` and `machine-11b`.
 
 If `imageStorageUrl` is empty, you can pass `--image-bucket-url` to generate it from the document id:
 

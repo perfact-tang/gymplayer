@@ -40,7 +40,7 @@ class GymRepository(private val context: Context) {
   private val db =
     Room.databaseBuilder(context, GymPlayerDatabase::class.java, "gymplayer.db")
       .fallbackToDestructiveMigration(false)
-      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
       .build()
   private val dao = db.dao()
   private val uidKey = stringPreferencesKey("uid")
@@ -197,7 +197,7 @@ class GymRepository(private val context: Context) {
             val imageStorageUrl = doc.getString("imageStorageUrl")
             MachineEntity(
               id = doc.id,
-              number = (doc.getLong("number") ?: return@mapNotNull null).toInt(),
+              number = doc.machineNumberString() ?: return@mapNotNull null,
               name = doc.getString("name") ?: return@mapNotNull null,
               bodyPart = doc.getString("bodyPart") ?: "",
               icon = doc.getString("icon") ?: "🏋",
@@ -653,7 +653,7 @@ data class AppState(
   val weightUnit: WeightUnit = WeightUnit.LB,
   val workoutSets: List<WorkoutSet> = emptyList(),
   val selectedWorkoutMachineIds: List<String> = emptyList(),
-  val selectedMachine: Machine = Machine("none", 0, "", "", "", 0, 0),
+  val selectedMachine: Machine = Machine("none", "", "", "", "", 0, 0),
   val restRemaining: Int = 0,
   val restDurationSeconds: Int = 50,
   val isRestAlarmRinging: Boolean = false,
@@ -734,3 +734,10 @@ private fun WorkoutSessionEntity.toFirestoreMap() =
 
 private fun WorkoutSetEntity.toFirestoreMap() =
   mapOf("machineId" to machineId, "machineNumber" to machineNumber, "machineName" to machineName, "setIndex" to setIndex, "weightLb" to weightKg, "storedWeightUnit" to WeightUnit.LB.label, "reps" to reps, "completedAt" to completedAt)
+
+private fun com.google.firebase.firestore.DocumentSnapshot.machineNumberString(): String? =
+  when (val value = get("number")) {
+    is String -> value.trim().ifBlank { null }
+    is Number -> value.toLong().toString()
+    else -> null
+  }
