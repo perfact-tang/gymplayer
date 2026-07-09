@@ -339,6 +339,12 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     persistActiveWorkoutDraft()
   }
 
+  fun setRestDurationSeconds(seconds: Int) {
+    val restDuration = seconds.coerceIn(1, 999)
+    _state.update { it.copy(restDurationSeconds = restDuration) }
+    persistActiveWorkoutDraft()
+  }
+
   fun selectMachine(machine: Machine) {
     _state.update { it.copy(selectedMachine = machine) }
     persistActiveWorkoutDraft()
@@ -508,6 +514,12 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     moveTrack(-1)
   }
 
+  fun handleMediaPreviousCommand() {
+    if (!completeSelectedSetFromMediaPrevious()) {
+      playPreviousTrack()
+    }
+  }
+
   fun onTrackEnded() {
     _state.update { current ->
       when (current.playbackMode) {
@@ -575,9 +587,46 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
         isRestAlarmRinging = false,
         resumeMusicAfterAlarm = startsRest && it.isPlaying,
         isPlaying = it.isPlaying,
+        restStartAnnouncementId = if (startsRest) it.restStartAnnouncementId + 1 else it.restStartAnnouncementId,
       )
     }
     persistActiveWorkoutDraft()
+  }
+
+  fun updateWorkoutSet(setId: String, weight: Int, reps: Int) {
+    var updatedState: AppState? = null
+    _state.update { current ->
+      val updatedSets =
+        current.workoutSets.map { set ->
+          if (set.id == setId) {
+            set.copy(weightKg = displayWeightToLb(weight, current.weightUnit), reps = reps)
+          } else {
+            set
+          }
+        }
+      current.copy(workoutSets = updatedSets).also { updatedState = it }
+    }
+    updatedState?.let(::persistActiveWorkoutDraft)
+  }
+
+  private fun completeSelectedSetFromMediaPrevious(): Boolean {
+    val current = _state.value
+    val machine = current.selectedMachine
+    val canCompleteSet =
+      current.screen == Screen.Training &&
+        current.currentTrack != null &&
+        current.isPlaying &&
+        current.restRemaining == 0 &&
+        !current.isRestAlarmRinging &&
+        current.workoutSets.count { it.machineId == machine.id } < machine.targetSets
+    if (!canCompleteSet) return false
+
+    completeSet(
+      weight = displayWeightFromLb(machine.defaultWeight, current.weightUnit),
+      reps = 10,
+      restSeconds = current.restDurationSeconds,
+    )
+    return true
   }
 
   fun tickRest() {
@@ -747,6 +796,7 @@ data class AppState(
   val selectedMachine: Machine = Machine("none", "", "", "", "", 0, 0),
   val restRemaining: Int = 0,
   val restDurationSeconds: Int = 50,
+  val restStartAnnouncementId: Int = 0,
   val isRestAlarmRinging: Boolean = false,
   val resumeMusicAfterAlarm: Boolean = false,
   val isPlaying: Boolean = false,

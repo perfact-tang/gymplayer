@@ -3,8 +3,10 @@ package com.vibecodingjapan.gymplayer.ui
 import android.app.Application
 import android.content.Intent
 import android.graphics.BitmapFactory
+import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.speech.tts.TextToSpeech
 import android.view.KeyEvent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -92,12 +94,14 @@ import com.vibecodingjapan.gymplayer.R
 import com.vibecodingjapan.gymplayer.Screen
 import com.vibecodingjapan.gymplayer.Track
 import com.vibecodingjapan.gymplayer.WeightUnit
+import com.vibecodingjapan.gymplayer.WorkoutSet
 import com.vibecodingjapan.gymplayer.displayWeightFromLb
 import kotlinx.coroutines.delay
 import java.io.File
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private val Ink = Color(0xFF07111C)
 private val Panel = Color(0xFF111C2A)
@@ -137,8 +141,30 @@ class GymPlayerAndroidViewModel(application: Application) : AndroidViewModel(app
 fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
   val context = LocalContext.current
   val player = remember { ExoPlayer.Builder(context).build() }
+  var restAnnouncementTts by remember { mutableStateOf<TextToSpeech?>(null) }
   val appViewModel = viewModel.inner
   val state by appViewModel.state.collectAsStateWithLifecycleCompat()
+  DisposableEffect(context) {
+    var tts: TextToSpeech? = null
+    tts =
+      TextToSpeech(context.applicationContext) { status ->
+        if (status == TextToSpeech.SUCCESS) {
+          tts?.language = Locale.JAPAN
+          tts?.setAudioAttributes(
+            AudioAttributes.Builder()
+              .setUsage(AudioAttributes.USAGE_MEDIA)
+              .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+              .build(),
+          )
+          restAnnouncementTts = tts
+        }
+      }
+    onDispose {
+      restAnnouncementTts = null
+      tts.stop()
+      tts.shutdown()
+    }
+  }
   val mediaSession =
     remember(player, appViewModel) {
       MediaSession.Builder(context, player)
@@ -153,7 +179,7 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                 KeyEvent.KEYCODE_HEADSETHOOK -> appViewModel.handleMediaPlayPauseCommand()
                 KeyEvent.KEYCODE_MEDIA_NEXT -> appViewModel.playNextTrack()
-                KeyEvent.KEYCODE_MEDIA_PREVIOUS -> appViewModel.playPreviousTrack()
+                KeyEvent.KEYCODE_MEDIA_PREVIOUS -> if (event.repeatCount == 0) appViewModel.handleMediaPreviousCommand()
                 else -> return false
               }
               return true
@@ -218,9 +244,14 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
       appViewModel.tickRest()
     }
   }
+  LaunchedEffect(state.restStartAnnouncementId, restAnnouncementTts) {
+    if (state.restStartAnnouncementId > 0) {
+      restAnnouncementTts?.speak("休憩に入ります", TextToSpeech.QUEUE_FLUSH, null, "rest-start-${state.restStartAnnouncementId}")
+    }
+  }
   LaunchedEffect(state.isRestAlarmRinging) {
     if (state.isRestAlarmRinging) {
-      val tone = ToneGenerator(AudioManager.STREAM_ALARM, 90)
+      val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 90)
       try {
         while (true) {
           tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 180)
@@ -690,11 +721,13 @@ private fun RequiredNumberCard(title: String, value: String, onValueChange: (Str
 private fun TrainingScreen(state: AppState, vm: AppViewModel) {
   var weight by remember(state.selectedMachine.id, state.weightUnit) { mutableStateOf(displayWeightFromLb(state.selectedMachine.defaultWeight, state.weightUnit).toString()) }
   var reps by remember(state.selectedMachine.id) { mutableStateOf("10") }
-  var restSeconds by remember { mutableStateOf("50") }
+  var restSeconds by remember(state.restDurationSeconds) { mutableStateOf(state.restDurationSeconds.toString()) }
   var showAddMachineDialog by remember { mutableStateOf(false) }
+  var editingSet by remember { mutableStateOf<WorkoutSet?>(null) }
   val workoutMachines = state.workoutMachines.ifEmpty { state.machines }
   val addableMachines = state.machines.filterNot { machine -> state.selectedWorkoutMachineIds.contains(machine.id) }
   val machineSets = state.workoutSets.filter { it.machineId == state.selectedMachine.id }
+  val isRestActive = state.restRemaining > 0 || state.isRestAlarmRinging
   Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
     GlassPanel(Modifier.weight(0.92f).fillMaxHeight()) {
       Column {
@@ -758,12 +791,12 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
             )
           },
           modifier = Modifier.fillMaxWidth().height(78.dp),
-          enabled = machineSets.size < state.selectedMachine.targetSets,
+          enabled = !isRestActive && machineSets.size < state.selectedMachine.targetSets,
           shape = RoundedCornerShape(8.dp),
         ) {
           Text("✓ このセットを完了", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
-        Button(onClick = { vm.navigate(Screen.FinishBody) }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Panel3)) {
+        Button(onClick = { vm.navigate(Screen.FinishBody) }, modifier = Modifier.fillMaxWidth().height(50.dp), enabled = !isRestActive, shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Panel3)) {
           Text("終了", fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
       }
@@ -772,7 +805,6 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
       GlassPanel(Modifier.fillMaxWidth().height(158.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
           Column {
-            val isRestActive = state.restRemaining > 0 || state.isRestAlarmRinging
             Text(
               when {
                 state.isRestAlarmRinging -> "⏰ 休憩終了"
@@ -789,7 +821,10 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
                 Text("0 /", fontSize = 34.sp, color = Muted)
                 OutlinedTextField(
                   value = restSeconds,
-                  onValueChange = { restSeconds = it.filter(Char::isDigit).take(3) },
+                  onValueChange = {
+                    restSeconds = it.filter(Char::isDigit).take(3)
+                    restSeconds.toIntOrNull()?.let(vm::setRestDurationSeconds)
+                  },
                   singleLine = true,
                   keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                   textStyle = TextStyle(color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
@@ -817,7 +852,37 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
           Spacer(Modifier.height(10.dp))
           (1..state.selectedMachine.targetSets).forEach { index ->
             val set = machineSets.getOrNull(index - 1)
-            Text("$index    ${set?.let { displayWeightFromLb(it.weightKg, state.weightUnit) } ?: "–"} ${state.weightUnit.label} / ${set?.reps ?: "–"} 回    ${if (set != null) "✓" else "○"}", fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (index == machineSets.size + 1) Color(0x553F63FF) else Panel2).padding(horizontal = 14.dp, vertical = 12.dp))
+            Row(
+              modifier =
+                Modifier
+                  .fillMaxWidth()
+                  .clip(RoundedCornerShape(8.dp))
+                  .background(if (index == machineSets.size + 1) Color(0x553F63FF) else Panel2)
+                  .padding(horizontal = 14.dp, vertical = 8.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+              Text(
+                "$index    ${set?.let { displayWeightFromLb(it.weightKg, state.weightUnit) } ?: "–"} ${state.weightUnit.label} / ${set?.reps ?: "–"} 回    ${if (set != null) "✓" else "○"}",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+              )
+              if (set != null) {
+                Spacer(Modifier.width(8.dp))
+                Button(
+                  onClick = { editingSet = set },
+                  modifier = Modifier.height(36.dp),
+                  shape = RoundedCornerShape(8.dp),
+                  contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                  colors = ButtonDefaults.buttonColors(containerColor = Panel3),
+                ) {
+                  Text("修正", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+              }
+            }
             Spacer(Modifier.height(8.dp))
           }
         }
@@ -840,6 +905,65 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
       },
     )
   }
+  editingSet?.let { set ->
+    EditWorkoutSetDialog(
+      set = set,
+      weightUnit = state.weightUnit,
+      onDismiss = { editingSet = null },
+      onSave = { weight, updatedReps ->
+        vm.updateWorkoutSet(set.id, weight, updatedReps)
+        editingSet = null
+      },
+    )
+  }
+}
+
+@Composable
+private fun EditWorkoutSetDialog(set: WorkoutSet, weightUnit: WeightUnit, onDismiss: () -> Unit, onSave: (Int, Int) -> Unit) {
+  var weight by remember(set.id, weightUnit) { mutableStateOf(displayWeightFromLb(set.weightKg, weightUnit).toString()) }
+  var reps by remember(set.id) { mutableStateOf(set.reps.toString()) }
+  val canSave = weight.toIntOrNull() != null && reps.toIntOrNull() != null
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("${set.setIndex}セット目を修正") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedTextField(
+          value = weight,
+          onValueChange = { weight = it.filter(Char::isDigit).take(4) },
+          label = { Text("重量 (${weightUnit.label})") },
+          singleLine = true,
+          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+          textStyle = TextStyle(color = Color.White),
+        )
+        OutlinedTextField(
+          value = reps,
+          onValueChange = { reps = it.filter(Char::isDigit).take(3) },
+          label = { Text("回数") },
+          singleLine = true,
+          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+          textStyle = TextStyle(color = Color.White),
+        )
+      }
+    },
+    confirmButton = {
+      Button(
+        onClick = { onSave(weight.toIntOrNull() ?: 0, reps.toIntOrNull() ?: 0) },
+        enabled = canSave,
+        shape = RoundedCornerShape(8.dp),
+      ) {
+        Text("保存")
+      }
+    },
+    dismissButton = {
+      Button(onClick = onDismiss, shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Panel3)) {
+        Text("キャンセル")
+      }
+    },
+    containerColor = Panel,
+    titleContentColor = Color.White,
+    textContentColor = Color.White,
+  )
 }
 
 @Composable
@@ -1129,11 +1253,25 @@ private fun CompactCalendarGrid(
             Spacer(Modifier.size(32.dp))
           } else {
             val isSelected = day == selected
-            Box(Modifier.size(32.dp).clip(CircleShape).background(if (isSelected) Blue else if (day == today) Green else Color.Transparent).clickable { onSelect(day) }, contentAlignment = Alignment.Center) {
-              Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("${day.dayOfMonth}", color = if (isSelected || day == today) Color(0xFF06140B) else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text(if (marked.contains(day)) "•" else "", color = Green, fontSize = 10.sp)
+            val hasWorkout = marked.contains(day)
+            val background =
+              when {
+                isSelected -> Green
+                hasWorkout -> Blue
+                else -> Color.Transparent
               }
+            val contentColor = if (isSelected || hasWorkout) Color(0xFF06140B) else Color.White
+            val todayBorder = if (day == today) Gold else Color.Transparent
+            Box(
+              Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(0.dp))
+                .background(background)
+                .border(2.dp, todayBorder, RoundedCornerShape(0.dp))
+                .clickable { onSelect(day) },
+              contentAlignment = Alignment.Center,
+            ) {
+              Text("${day.dayOfMonth}", color = contentColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
           }
         }
