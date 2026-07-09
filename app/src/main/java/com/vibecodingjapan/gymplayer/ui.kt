@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -62,6 +63,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
@@ -802,21 +805,18 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
       }
     }
     Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      GlassPanel(Modifier.fillMaxWidth().height(158.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
-          Column {
-            Text(
-              when {
-                state.isRestAlarmRinging -> "⏰ 休憩終了"
-                state.restRemaining > 0 -> "☕ 休憩中"
-                else -> "トレーニング中"
-              },
-              fontSize = 21.sp,
-              fontWeight = FontWeight.Bold,
-            )
-            if (isRestActive) {
-              Text("${state.restRemaining} / ${state.restDurationSeconds} 秒", fontSize = 42.sp, lineHeight = 46.sp, color = Green)
-            } else {
+      if (isRestActive) {
+        RestStatusPanel(
+          remainingSeconds = state.restRemaining,
+          totalSeconds = state.restDurationSeconds,
+          isAlarmRinging = state.isRestAlarmRinging,
+          onStopRest = vm::endRestOrStopAlarm,
+        )
+      } else {
+        GlassPanel(Modifier.fillMaxWidth().height(158.dp)) {
+          Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
+            Column {
+              Text("トレーニング中", fontSize = 21.sp, fontWeight = FontWeight.Bold)
               Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("0 /", fontSize = 34.sp, color = Muted)
                 OutlinedTextField(
@@ -832,16 +832,6 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
                 )
                 Text("秒", fontSize = 30.sp, color = Muted)
               }
-            }
-          }
-          if (state.restRemaining > 0 || state.isRestAlarmRinging) {
-            Button(
-              onClick = { vm.endRestOrStopAlarm() },
-              modifier = Modifier.size(66.dp),
-              shape = CircleShape,
-              colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935)),
-            ) {
-              Box(Modifier.size(24.dp).clip(RoundedCornerShape(5.dp)).background(Color.White))
             }
           }
         }
@@ -915,6 +905,67 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
         editingSet = null
       },
     )
+  }
+}
+
+@Composable
+private fun RestStatusPanel(remainingSeconds: Int, totalSeconds: Int, isAlarmRinging: Boolean, onStopRest: () -> Unit) {
+  val total = totalSeconds.coerceAtLeast(1)
+  val remaining = remainingSeconds.coerceIn(0, total)
+  val progress = remaining.toFloat() / total.toFloat()
+  GlassPanel(Modifier.fillMaxWidth().height(158.dp), contentPadding = 22.dp) {
+    Row(
+      modifier = Modifier.fillMaxSize(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+      Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Text(
+          if (isAlarmRinging) "☕ 休憩終了" else "☕ 休憩中",
+          fontSize = 23.sp,
+          lineHeight = 27.sp,
+          fontWeight = FontWeight.Bold,
+          color = Color.White,
+          maxLines = 1,
+        )
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          Text(
+            "$remaining",
+            fontSize = 50.sp,
+            lineHeight = 52.sp,
+            fontWeight = FontWeight.Bold,
+            color = Green,
+            maxLines = 1,
+          )
+          Text("/", fontSize = 38.sp, lineHeight = 46.sp, fontWeight = FontWeight.Bold, color = Muted)
+          Text("$total", fontSize = 38.sp, lineHeight = 46.sp, fontWeight = FontWeight.Bold, color = Muted, maxLines = 1)
+          Text("秒", fontSize = 22.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold, color = Muted, maxLines = 1)
+        }
+      }
+      Box(
+        modifier = Modifier.size(124.dp).clickable { onStopRest() },
+        contentAlignment = Alignment.Center,
+      ) {
+        Canvas(Modifier.fillMaxSize()) {
+          val strokeWidth = 13.dp.toPx()
+          drawArc(
+            color = Color(0xFF26334A),
+            startAngle = -90f,
+            sweepAngle = 360f,
+            useCenter = false,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+          )
+          drawArc(
+            color = Green,
+            startAngle = -90f,
+            sweepAngle = 360f * progress,
+            useCenter = false,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+          )
+        }
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFE53935)))
+      }
+    }
   }
 }
 
@@ -1162,7 +1213,7 @@ private fun HistoryScreen(state: AppState, vm: AppViewModel) {
             ) {
               Column(Modifier.weight(1f)) {
                 Text("ID ${session.id.take(8)}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("${session.startedAt.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${session.endedAt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"} 完了 / ${sets.size} セット", color = Muted, fontSize = 12.sp)
+                Text("${session.startedAt.format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm"))} - ${session.endedAt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"} 完了 / ${sets.size} セット", color = Muted, fontSize = 12.sp)
               }
               Text("削除", color = Danger, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { vm.deleteWorkoutSession(session.id) })
             }
