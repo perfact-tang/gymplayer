@@ -31,7 +31,6 @@ import java.io.File
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.text.Normalizer
-import kotlin.random.Random
 
 private val Context.sessionStore by preferencesDataStore("session")
 private const val ACTIVE_WORKOUT_DRAFT_ID = "active"
@@ -498,33 +497,45 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
   }
 
   fun cyclePlaybackMode() {
-    _state.update {
-      it.copy(
-        playbackMode =
-          when (it.playbackMode) {
-            PlaybackMode.PlaylistLoop -> PlaybackMode.SingleLoop
-            PlaybackMode.SingleLoop -> PlaybackMode.Shuffle
-            PlaybackMode.Shuffle -> PlaybackMode.PlaylistLoop
-          },
-      )
+    _state.update { current ->
+      val nextMode =
+        when (current.playbackMode) {
+          PlaybackMode.PlaylistLoop -> PlaybackMode.SingleLoop
+          PlaybackMode.SingleLoop -> PlaybackMode.Shuffle
+          PlaybackMode.Shuffle -> PlaybackMode.PlaylistLoop
+        }
+      val currentTrack = current.currentTrack
+      if (nextMode == PlaybackMode.Shuffle && currentTrack != null) {
+        val playlistTracks = current.tracks.filter { it.playlistId == currentTrack.playlistId }.sortedBy { it.orderIndex }
+        current.copy(playbackMode = nextMode, playbackQueue = shuffledPlaylistTracks(playlistTracks, firstTrack = currentTrack))
+      } else {
+        current.copy(playbackMode = nextMode)
+      }
     }
   }
 
   fun playTrack(track: Track) {
     _state.update { current ->
-      val queue = current.tracks.filter { it.playlistId == track.playlistId }.sortedBy { it.orderIndex }
+      val playlistTracks = current.tracks.filter { it.playlistId == track.playlistId }.sortedBy { it.orderIndex }
+      val queue =
+        if (current.playbackMode == PlaybackMode.Shuffle) {
+          shuffledPlaylistTracks(playlistTracks, firstTrack = track)
+        } else {
+          playlistTracks
+        }
       current.copy(currentTrack = track, currentPlaylistId = track.playlistId, playbackQueue = queue, isPlaying = true, playbackPositionMs = 0, playbackRequestId = current.playbackRequestId + 1, message = "再生中: ${track.title}")
     }
   }
 
   fun playPlaylist(playlistId: String, orderedTracks: List<Track> = emptyList()) {
     val playlistTracks = orderedTracks.ifEmpty { _state.value.tracks.filter { it.playlistId == playlistId }.sortedBy { it.orderIndex } }
-    val first = playlistTracks.firstOrNull()
+    val queue = if (_state.value.playbackMode == PlaybackMode.Shuffle) shuffledPlaylistTracks(playlistTracks) else playlistTracks
+    val first = queue.firstOrNull()
     if (first == null) {
       _state.update { it.copy(message = "プレイリストに曲がありません") }
       return
     }
-    _state.update { it.copy(currentPlaylistId = playlistId, playbackQueue = playlistTracks, currentTrack = first, isPlaying = true, playbackPositionMs = 0, playbackRequestId = it.playbackRequestId + 1, message = "プレイリストを再生中") }
+    _state.update { it.copy(currentPlaylistId = playlistId, playbackQueue = queue, currentTrack = first, isPlaying = true, playbackPositionMs = 0, playbackRequestId = it.playbackRequestId + 1, message = "プレイリストを再生中") }
   }
 
   fun playNextTrack() {
@@ -545,30 +556,44 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     _state.update { current ->
       when (current.playbackMode) {
         PlaybackMode.SingleLoop -> current.copy(isPlaying = true, playbackPositionMs = 0, playbackRequestId = current.playbackRequestId + 1)
-        PlaybackMode.PlaylistLoop -> current.nextTrackState(offset = 1, random = false)
-        PlaybackMode.Shuffle -> current.nextTrackState(offset = 1, random = true)
+        PlaybackMode.PlaylistLoop -> current.nextTrackState(offset = 1)
+        PlaybackMode.Shuffle -> current.nextTrackState(offset = 1, reshuffleOnForwardWrap = true)
       }
     }
   }
 
   private fun moveTrack(offset: Int) {
     _state.update { current ->
-      current.nextTrackState(offset = offset, random = current.playbackMode == PlaybackMode.Shuffle && offset > 0)
+      current.nextTrackState(offset = offset, reshuffleOnForwardWrap = current.playbackMode == PlaybackMode.Shuffle && offset > 0)
     }
   }
 
-  private fun AppState.nextTrackState(offset: Int, random: Boolean): AppState {
+  private fun AppState.nextTrackState(offset: Int, reshuffleOnForwardWrap: Boolean = false): AppState {
     val playlistId = currentPlaylistId.ifBlank { currentTrack?.playlistId.orEmpty() }
     val playlistTracks = playbackQueue.takeIf { it.isNotEmpty() && it.all { track -> track.playlistId == playlistId } } ?: tracks.filter { it.playlistId == playlistId }.sortedBy { it.orderIndex }
     if (playlistTracks.isEmpty()) return this
     val currentIndex = playlistTracks.indexOfFirst { it.id == currentTrack?.id }.takeIf { it >= 0 } ?: 0
-    val nextIndex =
-      if (random && playlistTracks.size > 1) {
-        generateSequence { Random.nextInt(playlistTracks.size) }.first { it != currentIndex }
+    val forwardWrap = offset > 0 && currentIndex + offset >= playlistTracks.size
+    val shouldReshuffle = reshuffleOnForwardWrap && forwardWrap
+    val queue =
+      if (shouldReshuffle) {
+        shuffledPlaylistTracks(tracks.filter { it.playlistId == playlistId }.sortedBy { it.orderIndex }, avoidFirstTrackId = currentTrack?.id)
       } else {
-        (currentIndex + offset + playlistTracks.size) % playlistTracks.size
+        playlistTracks
       }
-    return copy(currentPlaylistId = playlistId, currentTrack = playlistTracks[nextIndex], isPlaying = true, playbackPositionMs = 0, playbackRequestId = playbackRequestId + 1)
+    val nextIndex = if (shouldReshuffle) 0 else (currentIndex + offset + queue.size) % queue.size
+    return copy(currentPlaylistId = playlistId, playbackQueue = queue, currentTrack = queue[nextIndex], isPlaying = true, playbackPositionMs = 0, playbackRequestId = playbackRequestId + 1)
+  }
+
+  private fun shuffledPlaylistTracks(tracks: List<Track>, firstTrack: Track? = null, avoidFirstTrackId: String? = null): List<Track> {
+    if (tracks.size <= 1) return tracks
+    if (firstTrack != null) return listOf(firstTrack) + tracks.filterNot { it.id == firstTrack.id }.shuffled()
+    val shuffled = tracks.shuffled().toMutableList()
+    if (avoidFirstTrackId != null && shuffled.firstOrNull()?.id == avoidFirstTrackId) {
+      val swapIndex = shuffled.indexOfFirst { it.id != avoidFirstTrackId }
+      if (swapIndex > 0) java.util.Collections.swap(shuffled, 0, swapIndex)
+    }
+    return shuffled
   }
 
   fun updatePlaybackProgress(positionMs: Long, durationMs: Long) {
