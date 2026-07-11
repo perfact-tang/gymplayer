@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.view.KeyEvent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,6 +48,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -98,13 +100,16 @@ import com.vibecodingjapan.gymplayer.Screen
 import com.vibecodingjapan.gymplayer.Track
 import com.vibecodingjapan.gymplayer.WeightUnit
 import com.vibecodingjapan.gymplayer.WorkoutSet
+import com.vibecodingjapan.gymplayer.defaultWeightLbForMachine
 import com.vibecodingjapan.gymplayer.displayWeightFromLb
+import com.vibecodingjapan.gymplayer.displayWeightToLb
 import kotlinx.coroutines.delay
 import java.io.File
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private val Ink = Color(0xFF07111C)
 private val Panel = Color(0xFF111C2A)
@@ -145,6 +150,7 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
   val context = LocalContext.current
   val player = remember { ExoPlayer.Builder(context).build() }
   var restAnnouncementTts by remember { mutableStateOf<TextToSpeech?>(null) }
+  var currentTime by remember { mutableStateOf(LocalTime.now()) }
   val appViewModel = viewModel.inner
   val state by appViewModel.state.collectAsStateWithLifecycleCompat()
   DisposableEffect(context) {
@@ -212,6 +218,12 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
       appViewModel.navigate(Screen.Settings)
     }
   }
+  LaunchedEffect(Unit) {
+    while (true) {
+      currentTime = LocalTime.now()
+      delay(1000)
+    }
+  }
   LaunchedEffect(state.isPlaying) {
     if (state.isPlaying) player.play() else player.pause()
   }
@@ -249,12 +261,22 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
   }
   LaunchedEffect(state.restStartAnnouncementId, restAnnouncementTts) {
     if (state.restStartAnnouncementId > 0) {
-      restAnnouncementTts?.speak("休憩に入ります", TextToSpeech.QUEUE_FLUSH, null, "rest-start-${state.restStartAnnouncementId}")
+      restAnnouncementTts?.speak("休憩に入ります", TextToSpeech.QUEUE_FLUSH, ttsParams(state.restVoiceVolume), "rest-start-${state.restStartAnnouncementId}")
     }
   }
-  LaunchedEffect(state.isRestAlarmRinging) {
+  LaunchedEffect(state.workoutCompleteAnnouncementId, restAnnouncementTts) {
+    if (state.workoutCompleteAnnouncementId > 0) {
+      restAnnouncementTts?.speak(
+        "お疲れ様でした。${state.workoutCompleteSetCount}セット完了しました。",
+        TextToSpeech.QUEUE_FLUSH,
+        ttsParams(state.restVoiceVolume),
+        "workout-complete-${state.workoutCompleteAnnouncementId}",
+      )
+    }
+  }
+  LaunchedEffect(state.isRestAlarmRinging, state.restAlarmVolume) {
     if (state.isRestAlarmRinging) {
-      val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 90)
+      val tone = ToneGenerator(AudioManager.STREAM_MUSIC, state.restAlarmVolume.roundToInt().coerceIn(0, 100))
       try {
         while (true) {
           tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 180)
@@ -275,7 +297,7 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
     NavigationRail(state.screen, state.session.loggedIn, appViewModel::navigate)
     Spacer(Modifier.width(18.dp))
     Column(Modifier.weight(1f).fillMaxHeight()) {
-      TopStatus(state, appViewModel)
+      TopStatus(state, appViewModel, currentTime)
       Spacer(Modifier.height(14.dp))
       MainContent(state, appViewModel)
     }
@@ -310,6 +332,9 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
   }
 }
 
+private fun ttsParams(volume: Float): Bundle =
+  Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.coerceIn(0f, 1f)) }
+
 @Composable
 private fun NavigationRail(current: Screen, loggedIn: Boolean, onNavigate: (Screen) -> Unit) {
   val items =
@@ -326,7 +351,7 @@ private fun NavigationRail(current: Screen, loggedIn: Boolean, onNavigate: (Scre
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
     items.forEach { (screen, pair) ->
-      val selected = current == screen
+      val selected = current == screen || (current == Screen.HistoryEdit && screen == Screen.History)
       Column(
         Modifier
           .fillMaxWidth()
@@ -354,7 +379,7 @@ private fun NavigationRail(current: Screen, loggedIn: Boolean, onNavigate: (Scre
 }
 
 @Composable
-private fun TopStatus(state: AppState, vm: AppViewModel) {
+private fun TopStatus(state: AppState, vm: AppViewModel, currentTime: LocalTime) {
   Row(Modifier.fillMaxWidth().height(78.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
     GlassPanel(Modifier.width(230.dp).fillMaxHeight().clickable { if (state.hasActiveWorkout) vm.navigate(Screen.TrainingMenu) }, contentPadding = 14.dp) {
       val workoutMachines = state.workoutMachines
@@ -367,7 +392,7 @@ private fun TopStatus(state: AppState, vm: AppViewModel) {
       }
     }
     MusicBar(state, vm, Modifier.weight(1f))
-    Text(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")), fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White)
+    Text(currentTime.format(DateTimeFormatter.ofPattern("HH:mm")), fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White)
     if (state.restRemaining > 0 || state.isRestAlarmRinging) {
       Text("休憩 ${state.restRemaining}s", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Gold, maxLines = 1)
     }
@@ -423,6 +448,7 @@ private fun MainContent(state: AppState, vm: AppViewModel) {
       Screen.Training -> TrainingScreen(state, vm)
       Screen.FinishBody -> FinishBodyScreen(state, vm)
       Screen.History -> HistoryScreen(state, vm)
+      Screen.HistoryEdit -> HistoryEditScreen(state, vm)
       Screen.Settings -> SettingsScreen(state, vm)
     }
   }
@@ -722,7 +748,8 @@ private fun RequiredNumberCard(title: String, value: String, onValueChange: (Str
 
 @Composable
 private fun TrainingScreen(state: AppState, vm: AppViewModel) {
-  var weight by remember(state.selectedMachine.id, state.weightUnit) { mutableStateOf(displayWeightFromLb(state.selectedMachine.defaultWeight, state.weightUnit).toString()) }
+  val defaultWeightLb = defaultWeightLbForMachine(state.selectedMachine, state.sessions, state.savedSets)
+  var weight by remember(state.selectedMachine.id, defaultWeightLb, state.weightUnit) { mutableStateOf(displayWeightFromLb(defaultWeightLb, state.weightUnit).toString()) }
   var reps by remember(state.selectedMachine.id) { mutableStateOf("10") }
   var restSeconds by remember(state.restDurationSeconds) { mutableStateOf(state.restDurationSeconds.toString()) }
   var showAddMachineDialog by remember { mutableStateOf(false) }
@@ -1215,6 +1242,15 @@ private fun HistoryScreen(state: AppState, vm: AppViewModel) {
                 Text("ID ${session.id.take(8)}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Text("${session.startedAt.format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm"))} - ${session.endedAt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"} 完了 / ${sets.size} セット", color = Muted, fontSize = 12.sp)
               }
+              Button(
+                onClick = { vm.editWorkoutSession(session.id) },
+                modifier = Modifier.height(36.dp),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Panel3),
+              ) {
+                Text("修正", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+              }
               Text("削除", color = Danger, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { vm.deleteWorkoutSession(session.id) })
             }
           }
@@ -1260,12 +1296,263 @@ private fun HistoryScreen(state: AppState, vm: AppViewModel) {
           SummaryLine("合計マシン数", "${selectedSessionSets.groupBy { it.machineId }.size}")
           SummaryLine("合計セット数", "${selectedSessionSets.size}")
           Button(
+            onClick = { vm.editWorkoutSession(selectedSession.id) },
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Blue, contentColor = Color.White),
+          ) {
+            Text("この記録を修正", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+          }
+          Button(
             onClick = { vm.deleteWorkoutSession(selectedSession.id) },
             modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935), contentColor = Color.White),
           ) {
             Text("この記録を削除", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+          }
+        }
+      }
+    }
+  }
+}
+
+private data class HistorySetEditForm(val setId: String, val weight: String, val reps: String)
+
+@Composable
+private fun HistoryEditScreen(state: AppState, vm: AppViewModel) {
+  val session = state.sessions.firstOrNull { it.id == state.historyEditSessionId }
+  val sets = session?.let { currentSession -> state.savedSets.filter { it.sessionId == currentSession.id }.sortedWith(compareBy<WorkoutSet> { it.completedAt }.thenBy { it.setIndex }) }.orEmpty()
+  if (session == null) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+      Text("履歴を修正", fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold)
+      Text("修正する記録が見つかりません。", color = Muted, fontSize = 14.sp)
+      Button(onClick = vm::cancelHistoryEdit, modifier = Modifier.width(180.dp).height(52.dp), shape = RoundedCornerShape(8.dp)) {
+        Text("履歴に戻る", fontWeight = FontWeight.Bold)
+      }
+    }
+    return
+  }
+
+  var systolic by remember(session.id) { mutableStateOf(session.systolic.toString()) }
+  var diastolic by remember(session.id) { mutableStateOf(session.diastolic.toString()) }
+  var pulse by remember(session.id) { mutableStateOf(session.pulse.toString()) }
+  var weightKg by remember(session.id) { mutableStateOf(session.weightKg?.let { "%.1f".format(it) }.orEmpty()) }
+  var bodyFatPercent by remember(session.id) { mutableStateOf(session.bodyFatPercent?.let { "%.1f".format(it) }.orEmpty()) }
+  var muscleMassKg by remember(session.id) { mutableStateOf(session.muscleMassKg?.let { "%.1f".format(it) }.orEmpty()) }
+  var bodyWaterPercent by remember(session.id) { mutableStateOf(session.bodyWaterPercent?.let { "%.1f".format(it) }.orEmpty()) }
+  var bmi by remember(session.id) { mutableStateOf(session.bmi?.let { "%.1f".format(it) }.orEmpty()) }
+  var basalMetabolism by remember(session.id) { mutableStateOf(session.basalMetabolism?.let { "%.0f".format(it) }.orEmpty()) }
+  var visceralFat by remember(session.id) { mutableStateOf(session.visceralFat?.let { "%.1f".format(it) }.orEmpty()) }
+  var setForms by remember(session.id, sets, state.weightUnit) {
+    mutableStateOf(
+      sets.map { set ->
+        HistorySetEditForm(
+          setId = set.id,
+          weight = displayWeightFromLb(set.weightKg, state.weightUnit).toString(),
+          reps = set.reps.toString(),
+        )
+      },
+    )
+  }
+  val canSave =
+    systolic.toIntOrNull() != null &&
+      diastolic.toIntOrNull() != null &&
+      pulse.toIntOrNull() != null &&
+      (weightKg.isBlank() || weightKg.toDoubleOrNull() != null) &&
+      (bodyFatPercent.isBlank() || bodyFatPercent.toDoubleOrNull() != null) &&
+      (muscleMassKg.isBlank() || muscleMassKg.toDoubleOrNull() != null) &&
+      (bodyWaterPercent.isBlank() || bodyWaterPercent.toDoubleOrNull() != null) &&
+      (bmi.isBlank() || bmi.toDoubleOrNull() != null) &&
+      (basalMetabolism.isBlank() || basalMetabolism.toDoubleOrNull() != null) &&
+      (visceralFat.isBlank() || visceralFat.toDoubleOrNull() != null) &&
+      setForms.all { it.weight.toIntOrNull() != null && it.reps.toIntOrNull() != null }
+
+  Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+      Column {
+        Text("履歴を修正", fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold)
+        Text(session.startedAt.format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")), color = Muted, fontSize = 14.sp)
+      }
+      Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Button(onClick = vm::cancelHistoryEdit, modifier = Modifier.width(132.dp).height(52.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Panel3)) {
+          Text("キャンセル", fontWeight = FontWeight.Bold)
+        }
+        Button(
+          onClick = {
+            val updatedSets =
+              sets.map { set ->
+                val form = setForms.firstOrNull { it.setId == set.id }
+                if (form == null) {
+                  set
+                } else {
+                  set.copy(
+                    weightKg = displayWeightToLb(form.weight.toIntOrNull() ?: 0, state.weightUnit),
+                    reps = form.reps.toIntOrNull() ?: 0,
+                  )
+                }
+              }
+            vm.saveHistoryEdit(
+              session.copy(
+                systolic = systolic.toIntOrNull() ?: session.systolic,
+                diastolic = diastolic.toIntOrNull() ?: session.diastolic,
+                pulse = pulse.toIntOrNull() ?: session.pulse,
+                weightKg = weightKg.toDoubleOrNull(),
+                bodyFatPercent = bodyFatPercent.toDoubleOrNull(),
+                muscleMassKg = muscleMassKg.toDoubleOrNull(),
+                bodyWaterPercent = bodyWaterPercent.toDoubleOrNull(),
+                bmi = bmi.toDoubleOrNull(),
+                basalMetabolism = basalMetabolism.toDoubleOrNull(),
+                visceralFat = visceralFat.toDoubleOrNull(),
+              ),
+              updatedSets,
+            )
+          },
+          enabled = canSave,
+          modifier = Modifier.width(132.dp).height(52.dp),
+          shape = RoundedCornerShape(8.dp),
+        ) {
+          Text("完了", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+      }
+    }
+    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+      GlassPanel(Modifier.width(330.dp).fillMaxHeight()) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+          Text("トレーニング前", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+          OutlinedTextField(
+            value = systolic,
+            onValueChange = { systolic = it.filter(Char::isDigit).take(3) },
+            label = { Text("最高血圧") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          OutlinedTextField(
+            value = diastolic,
+            onValueChange = { diastolic = it.filter(Char::isDigit).take(3) },
+            label = { Text("最低血圧") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          OutlinedTextField(
+            value = pulse,
+            onValueChange = { pulse = it.filter(Char::isDigit).take(3) },
+            label = { Text("心拍数") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          Spacer(Modifier.height(6.dp))
+          Text("トレーニング後", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+          OutlinedTextField(
+            value = weightKg,
+            onValueChange = { raw -> weightKg = raw.filter { it.isDigit() || it == '.' }.take(8) },
+            label = { Text("体重 (kg)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          OutlinedTextField(
+            value = bodyFatPercent,
+            onValueChange = { raw -> bodyFatPercent = raw.filter { it.isDigit() || it == '.' }.take(8) },
+            label = { Text("体脂肪率 (%)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          OutlinedTextField(
+            value = muscleMassKg,
+            onValueChange = { raw -> muscleMassKg = raw.filter { it.isDigit() || it == '.' }.take(8) },
+            label = { Text("筋肉量 (kg)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          OutlinedTextField(
+            value = bodyWaterPercent,
+            onValueChange = { raw -> bodyWaterPercent = raw.filter { it.isDigit() || it == '.' }.take(8) },
+            label = { Text("体水分率 (%)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          OutlinedTextField(
+            value = bmi,
+            onValueChange = { raw -> bmi = raw.filter { it.isDigit() || it == '.' }.take(8) },
+            label = { Text("BMI") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          OutlinedTextField(
+            value = basalMetabolism,
+            onValueChange = { raw -> basalMetabolism = raw.filter { it.isDigit() || it == '.' }.take(8) },
+            label = { Text("基礎代謝量") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          OutlinedTextField(
+            value = visceralFat,
+            onValueChange = { raw -> visceralFat = raw.filter { it.isDigit() || it == '.' }.take(8) },
+            label = { Text("内臓脂肪") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+      }
+      GlassPanel(Modifier.weight(1f).fillMaxHeight()) {
+        Column(Modifier.fillMaxSize()) {
+          Text("セット記録", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+          Spacer(Modifier.height(12.dp))
+          if (sets.isEmpty()) {
+            Text("セット記録はありません。", color = Muted, fontSize = 14.sp)
+          } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+              items(sets) { set ->
+                val form = setForms.firstOrNull { it.setId == set.id } ?: HistorySetEditForm(set.id, "", "")
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Panel2).border(1.dp, Line, RoundedCornerShape(8.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                  Text("${set.machineNumber}号機 / ${set.machineName} / ${set.setIndex}セット目", fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                  Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                      value = form.weight,
+                      onValueChange = { value ->
+                        setForms = setForms.map { if (it.setId == set.id) it.copy(weight = value.filter(Char::isDigit).take(4)) else it }
+                      },
+                      label = { Text("重量 (${state.weightUnit.label})") },
+                      singleLine = true,
+                      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                      textStyle = TextStyle(color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                      modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                      value = form.reps,
+                      onValueChange = { value ->
+                        setForms = setForms.map { if (it.setId == set.id) it.copy(reps = value.filter(Char::isDigit).take(3)) else it }
+                      },
+                      label = { Text("回数") },
+                      singleLine = true,
+                      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                      textStyle = TextStyle(color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                      modifier = Modifier.weight(1f),
+                    )
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -1355,7 +1642,7 @@ private fun SettingsScreen(state: AppState, vm: AppViewModel) {
       }
     }
     GlassPanel(Modifier.weight(1f).fillMaxHeight()) {
-      Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+      Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("同期", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Text("ログイン状態: ${if (state.session.loggedIn) "ログイン済み" else "未ログイン"}", fontSize = 15.sp)
         Text("UserID: ${state.session.uid.ifBlank { "-" }}", color = Muted, fontSize = 13.sp)
@@ -1376,6 +1663,28 @@ private fun SettingsScreen(state: AppState, vm: AppViewModel) {
               Text(unit.label, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             }
           }
+        }
+        Spacer(Modifier.height(18.dp))
+        Text("音量", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("休憩開始とセット完了の音声", color = Muted, fontSize = 13.sp)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+          Text("${(state.restVoiceVolume * 100).roundToInt()}%", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(58.dp))
+          Slider(
+            value = state.restVoiceVolume,
+            onValueChange = vm::setRestVoiceVolume,
+            valueRange = 0.5f..1f,
+            modifier = Modifier.weight(1f),
+          )
+        }
+        Text("休憩終了アラーム", color = Muted, fontSize = 13.sp)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+          Text("${state.restAlarmVolume.roundToInt()}%", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(58.dp))
+          Slider(
+            value = state.restAlarmVolume,
+            onValueChange = vm::setRestAlarmVolume,
+            valueRange = 50f..100f,
+            modifier = Modifier.weight(1f),
+          )
         }
       }
     }

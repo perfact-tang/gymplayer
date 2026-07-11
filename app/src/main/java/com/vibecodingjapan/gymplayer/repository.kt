@@ -6,6 +6,7 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -50,6 +51,8 @@ class GymRepository(private val context: Context) {
   private val loggedInKey = booleanPreferencesKey("logged_in")
   private val lastSyncKey = longPreferencesKey("last_sync")
   private val weightUnitKey = stringPreferencesKey("weight_unit")
+  private val restVoiceVolumeKey = floatPreferencesKey("rest_voice_volume")
+  private val restAlarmVolumeKey = floatPreferencesKey("rest_alarm_volume")
 
   val session: Flow<UserSession> =
     context.sessionStore.data.map { prefs ->
@@ -60,6 +63,12 @@ class GymRepository(private val context: Context) {
     context.sessionStore.data.map { prefs ->
       runCatching { WeightUnit.valueOf(prefs[weightUnitKey] ?: WeightUnit.LB.name) }.getOrDefault(WeightUnit.LB)
     }
+
+  val restVoiceVolume: Flow<Float> =
+    context.sessionStore.data.map { prefs -> (prefs[restVoiceVolumeKey] ?: 1f).coerceIn(0.5f, 1f) }
+
+  val restAlarmVolume: Flow<Float> =
+    context.sessionStore.data.map { prefs -> (prefs[restAlarmVolumeKey] ?: 100f).coerceIn(50f, 100f) }
 
   val machines: Flow<List<Machine>> =
     dao.machines().map { rows ->
@@ -194,6 +203,14 @@ class GymRepository(private val context: Context) {
     context.sessionStore.edit { it[weightUnitKey] = unit.name }
   }
 
+  suspend fun setRestVoiceVolume(volume: Float) {
+    context.sessionStore.edit { it[restVoiceVolumeKey] = volume.coerceIn(0.5f, 1f) }
+  }
+
+  suspend fun setRestAlarmVolume(volume: Float) {
+    context.sessionStore.edit { it[restAlarmVolumeKey] = volume.coerceIn(50f, 100f) }
+  }
+
   suspend fun sync(onProgress: (SyncProgress) -> Unit = {}): Result<String> =
     withContext(Dispatchers.IO) {
       runCatching {
@@ -312,6 +329,8 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     viewModelScope.launch { repository.playlists.collect { playlists -> _state.update { it.copy(playlists = playlists) } } }
     viewModelScope.launch { repository.allTracks.collect { tracks -> _state.update { it.copy(tracks = tracks) } } }
     viewModelScope.launch { repository.weightUnit.collect { unit -> _state.update { it.copy(weightUnit = unit) } } }
+    viewModelScope.launch { repository.restVoiceVolume.collect { volume -> _state.update { it.copy(restVoiceVolume = volume) } } }
+    viewModelScope.launch { repository.restAlarmVolume.collect { volume -> _state.update { it.copy(restAlarmVolume = volume) } } }
     viewModelScope.launch {
       combine(repository.activeWorkoutDraft, repository.activeWorkoutDraftSets) { draft, sets -> draft to sets }
         .collect { (draft, sets) -> restoreActiveWorkoutIfReady(draft, sets) }
@@ -393,6 +412,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
             selectedWorkoutMachineIds = selectedIds,
             selectedMachine = selectedMachine,
             bodyCheck = draft.bodyCheck,
+            workoutStartedAt = sets.minOfOrNull { it.completedAt },
             restRemaining = 0,
             restDurationSeconds = draft.restDurationSeconds,
             isRestAlarmRinging = false,
@@ -430,6 +450,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     _state.update {
       it.copy(
         workoutSets = emptyList(),
+        workoutStartedAt = LocalDateTime.now(),
         selectedMachine = workoutMachines.first(),
         restRemaining = 0,
         restDurationSeconds = 50,
@@ -588,6 +609,8 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
         resumeMusicAfterAlarm = startsRest && it.isPlaying,
         isPlaying = it.isPlaying,
         restStartAnnouncementId = if (startsRest) it.restStartAnnouncementId + 1 else it.restStartAnnouncementId,
+        workoutCompleteAnnouncementId = if (startsRest) it.workoutCompleteAnnouncementId else it.workoutCompleteAnnouncementId + 1,
+        workoutCompleteSetCount = if (startsRest) it.workoutCompleteSetCount else nextSet,
       )
     }
     persistActiveWorkoutDraft()
@@ -622,7 +645,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     if (!canCompleteSet) return false
 
     completeSet(
-      weight = displayWeightFromLb(machine.defaultWeight, current.weightUnit),
+      weight = displayWeightFromLb(defaultWeightLbForMachine(machine, current.sessions, current.savedSets), current.weightUnit),
       reps = 10,
       restSeconds = current.restDurationSeconds,
     )
@@ -661,13 +684,17 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
   fun saveFinishedWorkout(result: BodyResult) {
     launchSafe {
       val current = state.value
+      val endedAt = LocalDateTime.now()
+      val startedAt = current.workoutStartedAt ?: current.workoutSets.minOfOrNull { it.completedAt } ?: endedAt
       val session =
         WorkoutSession(
           uid = current.session.uid.ifBlank { "local" },
+          date = startedAt.toLocalDate(),
+          startedAt = startedAt,
           systolic = current.bodyCheck.systolic,
           diastolic = current.bodyCheck.diastolic,
           pulse = current.bodyCheck.pulse,
-          endedAt = LocalDateTime.now(),
+          endedAt = endedAt,
           weightKg = result.weightKg.toDoubleOrNull(),
           bodyFatPercent = result.bodyFatPercent.toDoubleOrNull(),
           muscleMassKg = result.muscleMassKg.toDoubleOrNull(),
@@ -675,10 +702,10 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
           bmi = result.bmi.toDoubleOrNull(),
           basalMetabolism = result.basalMetabolism.toDoubleOrNull(),
           visceralFat = result.visceralFat.toDoubleOrNull(),
-        )
+      )
       repository.saveWorkout(session, current.workoutSets.map { it.copy(sessionId = session.id) })
       repository.clearActiveWorkoutDraft()
-      _state.update { it.copy(workoutSets = emptyList(), selectedWorkoutMachineIds = emptyList(), message = "今日のトレーニングを保存しました", screen = Screen.History) }
+      _state.update { it.copy(workoutSets = emptyList(), workoutStartedAt = null, selectedWorkoutMachineIds = emptyList(), message = "今日のトレーニングを保存しました", screen = Screen.History) }
     }
   }
 
@@ -742,6 +769,14 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     launchSafe { repository.setWeightUnit(unit) }
   }
 
+  fun setRestVoiceVolume(volume: Float) {
+    launchSafe { repository.setRestVoiceVolume(volume) }
+  }
+
+  fun setRestAlarmVolume(volume: Float) {
+    launchSafe { repository.setRestAlarmVolume(volume) }
+  }
+
   fun deleteWorkoutSet(setId: String) {
     launchSafe {
       repository.deleteWorkoutSet(setId)
@@ -753,6 +788,21 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     launchSafe {
       repository.deleteWorkoutSession(sessionId)
       _state.update { it.copy(message = "ワークアウトを削除しました") }
+    }
+  }
+
+  fun editWorkoutSession(sessionId: String) {
+    _state.update { it.copy(historyEditSessionId = sessionId, screen = Screen.HistoryEdit) }
+  }
+
+  fun cancelHistoryEdit() {
+    _state.update { it.copy(historyEditSessionId = "", screen = Screen.History) }
+  }
+
+  fun saveHistoryEdit(session: WorkoutSession, sets: List<WorkoutSet>) {
+    launchSafe {
+      repository.saveWorkout(session.copy(synced = false), sets)
+      _state.update { it.copy(historyEditSessionId = "", message = "履歴を更新しました", screen = Screen.History) }
     }
   }
 
@@ -787,16 +837,22 @@ data class AppState(
   val playbackDurationMs: Long = 0,
   val playbackMode: PlaybackMode = PlaybackMode.PlaylistLoop,
   val screen: Screen = Screen.Home,
+  val historyEditSessionId: String = "",
   val bodyCheck: BodyCheck = BodyCheck(),
   val message: String = "",
   val syncDialog: SyncDialogState? = null,
   val weightUnit: WeightUnit = WeightUnit.LB,
+  val restVoiceVolume: Float = 1f,
+  val restAlarmVolume: Float = 100f,
   val workoutSets: List<WorkoutSet> = emptyList(),
+  val workoutStartedAt: LocalDateTime? = null,
   val selectedWorkoutMachineIds: List<String> = emptyList(),
   val selectedMachine: Machine = Machine("none", "", "", "", "", 0, 0),
   val restRemaining: Int = 0,
   val restDurationSeconds: Int = 50,
   val restStartAnnouncementId: Int = 0,
+  val workoutCompleteAnnouncementId: Int = 0,
+  val workoutCompleteSetCount: Int = 0,
   val isRestAlarmRinging: Boolean = false,
   val resumeMusicAfterAlarm: Boolean = false,
   val isPlaying: Boolean = false,

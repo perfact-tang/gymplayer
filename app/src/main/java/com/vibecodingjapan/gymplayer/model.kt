@@ -82,7 +82,7 @@ data class BodyResult(
   val visceralFat: String = "",
 )
 
-enum class Screen { Home, Music, TrainingMenu, BodyCheck, Training, FinishBody, History, Settings }
+enum class Screen { Home, Music, TrainingMenu, BodyCheck, Training, FinishBody, History, HistoryEdit, Settings }
 
 enum class SetStatus { Pending, Active, Resting, Complete }
 
@@ -131,6 +131,19 @@ fun displayWeightToLb(value: Double?, unit: WeightUnit): Double? =
       WeightUnit.KG -> it * LB_PER_KG
     }
   }
+
+fun defaultWeightLbForMachine(machine: Machine, sessions: List<WorkoutSession>, sets: List<WorkoutSet>): Int {
+  val recentSessionId =
+    sessions
+      .sortedByDescending { it.startedAt }
+      .firstOrNull { session -> sets.any { it.sessionId == session.id && it.machineId == machine.id } }
+      ?.id
+      ?: return machine.defaultWeight
+  return sets
+    .filter { it.sessionId == recentSessionId && it.machineId == machine.id }
+    .maxOfOrNull { it.weightKg }
+    ?: machine.defaultWeight
+}
 
 data class TrainingMachineState(
   val machine: Machine,

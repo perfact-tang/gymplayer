@@ -2,6 +2,7 @@ package com.vibecodingjapan.gymplayer
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.LocalDateTime
 
 class WorkoutEngineTest {
   @Test
@@ -35,5 +36,28 @@ class WorkoutEngineTest {
 
     assertEquals("72.5 kg", session.weightKg?.let { "%.1f kg".format(it) })
     assertEquals("31.2 kg", session.muscleMassKg?.let { "%.1f kg".format(it) })
+  }
+
+  @Test
+  fun smartDefaultWeightUsesMaxWeightFromMostRecentMachineSession() {
+    val machine = Machine("m1", "3", "側推胸机", "胸", "🏋", defaultWeight = 40)
+    val oldSession = WorkoutSession(id = "old", uid = "local", startedAt = LocalDateTime.parse("2026-01-01T10:00:00"))
+    val recentSession = WorkoutSession(id = "recent", uid = "local", startedAt = LocalDateTime.parse("2026-01-08T10:00:00"))
+    val sets =
+      listOf(
+        WorkoutSet(sessionId = "old", machineId = machine.id, machineNumber = "3", machineName = machine.name, setIndex = 1, weightKg = 210, reps = 8),
+        WorkoutSet(sessionId = "recent", machineId = machine.id, machineNumber = "3", machineName = machine.name, setIndex = 1, weightKg = 190, reps = 10),
+        WorkoutSet(sessionId = "recent", machineId = machine.id, machineNumber = "3", machineName = machine.name, setIndex = 2, weightKg = 170, reps = 10),
+        WorkoutSet(sessionId = "recent", machineId = machine.id, machineNumber = "3", machineName = machine.name, setIndex = 3, weightKg = 150, reps = 10),
+      )
+
+    assertEquals(190, defaultWeightLbForMachine(machine, listOf(oldSession, recentSession), sets))
+  }
+
+  @Test
+  fun smartDefaultWeightFallsBackToMachineDefaultWithoutHistory() {
+    val machine = Machine("m1", "3", "側推胸机", "胸", "🏋", defaultWeight = 40)
+
+    assertEquals(40, defaultWeightLbForMachine(machine, emptyList(), emptyList()))
   }
 }

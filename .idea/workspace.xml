@@ -4,7 +4,13 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3ba00041-50c0-4003-bf3f-7129c781fd14" name="Changes" comment="" />
+    <list default="true" id="3ba00041-50c0-4003-bf3f-7129c781fd14" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/model.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/model.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/repository.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/repository.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/ui.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/vibecodingjapan/gymplayer/ui.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/test/java/com/vibecodingjapan/gymplayer/WorkoutEngineTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/test/java/com/vibecodingjapan/gymplayer/WorkoutEngineTest.kt" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -13,7 +19,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[LocalEmulator::path=/Users/pt/.android/avd/Pixel_Tablet.avd]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[PhysicalDevice::serial=HA1213GW]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
