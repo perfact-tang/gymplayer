@@ -44,12 +44,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Text
+import androidx.compose.material3.Text as MaterialText
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -59,6 +62,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +73,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalContext
@@ -79,6 +84,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -89,6 +95,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
 import com.vibecodingjapan.gymplayer.AppState
+import com.vibecodingjapan.gymplayer.AppLanguage
 import com.vibecodingjapan.gymplayer.AppViewModel
 import com.vibecodingjapan.gymplayer.BodyCheck
 import com.vibecodingjapan.gymplayer.BodyResult
@@ -108,7 +115,6 @@ import java.io.File
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.roundToInt
 
 private val Ink = Color(0xFF07111C)
@@ -122,6 +128,31 @@ private val Cyan = Color(0xFF27D7C1)
 private val Muted = Color(0xFFA4B0BE)
 private val Gold = Color(0xFFFFC947)
 private val Danger = Color(0xFFFF756F)
+private val LocalAppLanguage = staticCompositionLocalOf { AppLanguage.JAPANESE }
+
+@Composable
+private fun Text(
+  text: String,
+  modifier: Modifier = Modifier,
+  color: Color = Color.Unspecified,
+  fontSize: TextUnit = TextUnit.Unspecified,
+  fontWeight: FontWeight? = null,
+  textAlign: TextAlign? = null,
+  lineHeight: TextUnit = TextUnit.Unspecified,
+  overflow: TextOverflow = TextOverflow.Clip,
+  softWrap: Boolean = true,
+  maxLines: Int = Int.MAX_VALUE,
+  minLines: Int = 1,
+  onTextLayout: ((TextLayoutResult) -> Unit)? = null,
+  style: TextStyle = LocalTextStyle.current,
+) {
+  MaterialText(
+    text = localizeUiText(text, LocalAppLanguage.current), modifier = modifier, color = color,
+    fontSize = fontSize, fontWeight = fontWeight, textAlign = textAlign, lineHeight = lineHeight,
+    overflow = overflow, softWrap = softWrap, maxLines = maxLines, minLines = minLines,
+    onTextLayout = onTextLayout, style = style,
+  )
+}
 
 @Composable
 fun GymPlayerTheme(content: @Composable () -> Unit) {
@@ -153,12 +184,15 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
   var currentTime by remember { mutableStateOf(LocalTime.now()) }
   val appViewModel = viewModel.inner
   val state by appViewModel.state.collectAsStateWithLifecycleCompat()
+  LaunchedEffect(state.language, restAnnouncementTts) {
+    restAnnouncementTts?.language = state.language.locale
+  }
   DisposableEffect(context) {
     var tts: TextToSpeech? = null
     tts =
       TextToSpeech(context.applicationContext) { status ->
         if (status == TextToSpeech.SUCCESS) {
-          tts?.language = Locale.JAPAN
+          tts?.language = state.language.locale
           tts?.setAudioAttributes(
             AudioAttributes.Builder()
               .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -261,13 +295,13 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
   }
   LaunchedEffect(state.restStartAnnouncementId, restAnnouncementTts) {
     if (state.restStartAnnouncementId > 0) {
-      restAnnouncementTts?.speak("休憩に入ります", TextToSpeech.QUEUE_FLUSH, ttsParams(state.restVoiceVolume), "rest-start-${state.restStartAnnouncementId}")
+      restAnnouncementTts?.speak(localizeUiText("休憩に入ります", state.language), TextToSpeech.QUEUE_FLUSH, ttsParams(state.restVoiceVolume), "rest-start-${state.restStartAnnouncementId}")
     }
   }
   LaunchedEffect(state.workoutCompleteAnnouncementId, restAnnouncementTts) {
     if (state.workoutCompleteAnnouncementId > 0) {
       restAnnouncementTts?.speak(
-        "お疲れ様でした。${state.workoutCompleteSetCount}セット完了しました。",
+        localizeUiText("お疲れ様でした。${state.workoutCompleteSetCount}セット完了しました。", state.language),
         TextToSpeech.QUEUE_FLUSH,
         ttsParams(state.restVoiceVolume),
         "workout-complete-${state.workoutCompleteAnnouncementId}",
@@ -288,6 +322,7 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
       }
     }
   }
+  CompositionLocalProvider(LocalAppLanguage provides state.language) {
   Row(
     Modifier
       .fillMaxSize()
@@ -329,6 +364,7 @@ fun GymPlayerApp(viewModel: GymPlayerAndroidViewModel = viewModel()) {
       titleContentColor = Color.White,
       textContentColor = Color.White,
     )
+  }
   }
 }
 
@@ -411,8 +447,8 @@ private fun MusicBar(state: AppState, vm: AppViewModel, modifier: Modifier = Mod
       Text(if (state.isPlaying) "⏸" else "▶", fontSize = 25.sp, color = if (hasTrack) Color.White else Muted, modifier = Modifier.clickable(enabled = hasTrack) { vm.togglePlay() })
       Text("⏭", fontSize = 21.sp, color = if (hasTrack) Color.White else Muted, modifier = Modifier.clickable(enabled = hasTrack) { vm.playNextTrack() })
       Column(Modifier.weight(1f)) {
-        Text(state.currentTrack?.title.orEmpty(), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(state.currentTrack?.artist.orEmpty(), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        MaterialText(state.currentTrack?.title.orEmpty(), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        MaterialText(state.currentTrack?.artist.orEmpty(), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
       }
       Text(if (hasTrack) formatDuration(state.playbackPositionMs) else "", color = Color.White, fontSize = 13.sp)
       Box(Modifier.width(170.dp).height(5.dp).clip(RoundedCornerShape(100.dp)).background(Line)) {
@@ -560,7 +596,7 @@ private fun MusicScreen(state: AppState, vm: AppViewModel) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
           ) {
-            Text("≡  ${playlist.name}\n   ${count}曲", fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+            MaterialText("≡  ${playlist.name}\n   ${localizeUiText("${count}曲", state.language)}", fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
             Text("削除", color = Danger, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { vm.deletePlaylist(playlist.id) })
           }
         }
@@ -640,8 +676,8 @@ private fun TrackRow(track: Track, onUp: () -> Unit, onDown: () -> Unit, onPlay:
     Text("⋮⋮", color = Muted, fontSize = 14.sp)
     Box(Modifier.size(42.dp).clip(RoundedCornerShape(6.dp)).background(Brush.linearGradient(listOf(Cyan, Blue, Color(0xFFE55A2A)))))
     Column(Modifier.weight(1f)) {
-      Text(track.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-      Text(track.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+      MaterialText(track.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+      MaterialText(track.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
     Text("%02d:%02d".format(track.durationMs / 60000, (track.durationMs / 1000) % 60), color = Muted, fontSize = 13.sp)
     Text("↑", color = Muted, fontSize = 20.sp, modifier = Modifier.clickable { onUp() })
@@ -656,7 +692,7 @@ private fun TrainingMenuScreen(state: AppState, vm: AppViewModel) {
   }
   Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Text("今日のトレーニングメニュー", fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold)
-    Text("${LocalDate.now()}（水）  選択 ${state.selectedWorkoutMachineIds.size} / ${state.machines.size}", color = Muted, fontSize = 14.sp)
+    Text("${LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd (EEE)", state.language.locale))}  選択 ${state.selectedWorkoutMachineIds.size} / ${state.machines.size}", color = Muted, fontSize = 14.sp)
     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
       items(state.machines) { machine ->
         val checked = state.selectedWorkoutMachineIds.contains(machine.id)
@@ -664,8 +700,8 @@ private fun TrainingMenuScreen(state: AppState, vm: AppViewModel) {
           Text("${machine.number}", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.width(44.dp))
           Text(machine.icon, fontSize = 24.sp, modifier = Modifier.width(48.dp))
           Column(Modifier.weight(1f)) {
-            Text(machine.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(machine.bodyPart, color = Muted, fontSize = 12.sp)
+            Text(machine.localizedName(state.language), fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(machine.localizedBodyPart(state.language), color = Muted, fontSize = 12.sp)
           }
           Text("${machine.targetSets}セット", fontSize = 16.sp, fontWeight = FontWeight.Bold)
           Spacer(Modifier.width(30.dp))
@@ -783,7 +819,7 @@ private fun TrainingScreen(state: AppState, vm: AppViewModel) {
     GlassPanel(Modifier.weight(1.08f).fillMaxHeight()) {
       Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-          "${state.selectedMachine.number}号機 / ${state.selectedMachine.name}",
+          "${state.selectedMachine.number}号機 / ${state.selectedMachine.localizedName(state.language)}",
           fontSize = 24.sp,
           lineHeight = 29.sp,
           fontWeight = FontWeight.Bold,
@@ -1046,6 +1082,7 @@ private fun EditWorkoutSetDialog(set: WorkoutSet, weightUnit: WeightUnit, onDism
 
 @Composable
 private fun AddWorkoutMachineDialog(machines: List<Machine>, onDismiss: () -> Unit, onAdd: (Machine) -> Unit) {
+  val language = LocalAppLanguage.current
   AlertDialog(
     onDismissRequest = onDismiss,
     title = { Text("マシンを追加") },
@@ -1069,8 +1106,8 @@ private fun AddWorkoutMachineDialog(machines: List<Machine>, onDismiss: () -> Un
               Text("${machine.number}", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(40.dp))
               Text(machine.icon, fontSize = 22.sp, modifier = Modifier.width(36.dp))
               Column(Modifier.weight(1f)) {
-                Text(machine.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(machine.bodyPart, color = Muted, fontSize = 12.sp)
+                Text(machine.localizedName(language), fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(machine.localizedBodyPart(language), color = Muted, fontSize = 12.sp)
               }
               Text("+", color = Green, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             }
@@ -1088,6 +1125,7 @@ private fun AddWorkoutMachineDialog(machines: List<Machine>, onDismiss: () -> Un
 
 @Composable
 private fun MachineImage(machine: Machine, modifier: Modifier = Modifier) {
+  val language = LocalAppLanguage.current
   val path = machine.localImagePath
   val bitmap = remember(path) {
     path
@@ -1102,7 +1140,7 @@ private fun MachineImage(machine: Machine, modifier: Modifier = Modifier) {
     contentAlignment = Alignment.Center,
   ) {
     if (bitmap != null) {
-      Image(bitmap = bitmap.asImageBitmap(), contentDescription = machine.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+      Image(bitmap = bitmap.asImageBitmap(), contentDescription = machine.localizedName(language), modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
     } else {
       Text(machine.icon, fontSize = 30.sp)
     }
@@ -1218,7 +1256,7 @@ private fun HistoryScreen(state: AppState, vm: AppViewModel) {
             selectedDate = state.sessions.map { it.date }.filter { it.year == month.year && it.monthValue == month.monthValue }.minOrNull() ?: month
           },
         ) { selectedDate = it }
-        Text("選択日: $selectedDate", color = Muted, fontSize = 13.sp)
+        Text("選択日: ${selectedDate.format(DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM).withLocale(state.language.locale))}", color = Muted, fontSize = 13.sp)
       }
     }
     GlassPanel(Modifier.weight(1f).fillMaxHeight()) {
@@ -1272,7 +1310,8 @@ private fun HistoryScreen(state: AppState, vm: AppViewModel) {
           Text("セット記録", fontSize = 18.sp, fontWeight = FontWeight.Bold)
           selectedSessionSets.groupBy { it.machineId }.values.forEach { machineSets ->
             val first = machineSets.first()
-            Text("${first.machineNumber}号機 / ${first.machineName}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            val localizedMachineName = state.machines.firstOrNull { it.id == first.machineId }?.localizedName(state.language) ?: first.machineName
+            Text("${first.machineNumber}号機 / $localizedMachineName", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             machineSets.sortedBy { it.setIndex }.forEach { set ->
               SummaryLine(
                 "${set.setIndex}セット目",
@@ -1525,7 +1564,8 @@ private fun HistoryEditScreen(state: AppState, vm: AppViewModel) {
               items(sets) { set ->
                 val form = setForms.firstOrNull { it.setId == set.id } ?: HistorySetEditForm(set.id, "", "")
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Panel2).border(1.dp, Line, RoundedCornerShape(8.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                  Text("${set.machineNumber}号機 / ${set.machineName} / ${set.setIndex}セット目", fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                  val localizedMachineName = state.machines.firstOrNull { it.id == set.machineId }?.localizedName(state.language) ?: set.machineName
+                  Text("${set.machineNumber}号機 / $localizedMachineName / ${set.setIndex}セット目", fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                   Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                       value = form.weight,
@@ -1570,6 +1610,7 @@ private fun CompactCalendarGrid(
 ) {
   val today = LocalDate.now()
   val first = month.withDayOfMonth(1)
+  val locale = LocalAppLanguage.current.locale
   val leadingBlanks = first.dayOfWeek.value - 1
   val monthDays = (1..first.lengthOfMonth()).map { first.withDayOfMonth(it) }
   val cells = (List<LocalDate?>(leadingBlanks) { null } + monthDays).let { days ->
@@ -1578,11 +1619,13 @@ private fun CompactCalendarGrid(
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
       Text("‹", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.width(42.dp).clickable { onMonthChange(first.minusMonths(1)) })
-      Text("${first.year}年${first.monthValue}月", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+      Text(first.format(DateTimeFormatter.ofPattern("yyyy MMMM", locale)), fontSize = 18.sp, fontWeight = FontWeight.Bold)
       Text("›", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.width(42.dp).clickable { onMonthChange(first.plusMonths(1)) })
     }
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-      listOf("月", "火", "水", "木", "金", "土", "日").forEach { Text(it, color = Muted, fontSize = 12.sp, modifier = Modifier.width(32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+      java.time.DayOfWeek.entries.forEach { day ->
+        Text(day.getDisplayName(java.time.format.TextStyle.SHORT, locale), color = Muted, fontSize = 12.sp, modifier = Modifier.width(32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+      }
     }
     cells.chunked(7).forEach { week ->
       Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1630,6 +1673,7 @@ private fun SummaryLine(label: String, value: String) {
 private fun SettingsScreen(state: AppState, vm: AppViewModel) {
   var email by remember { mutableStateOf(state.session.email.ifBlank { "name@example.com" }) }
   var password by remember { mutableStateOf("") }
+  var languageMenuExpanded by remember { mutableStateOf(false) }
   Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
     GlassPanel(Modifier.width(390.dp).fillMaxHeight()) {
       Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1639,6 +1683,27 @@ private fun SettingsScreen(state: AppState, vm: AppViewModel) {
         OutlinedTextField(password, { password = it }, label = { Text("パスワード") }, singleLine = true)
         Button(onClick = { vm.login(email, password) }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(8.dp)) { Text("ログイン", fontSize = 15.sp, fontWeight = FontWeight.Bold) }
         Button(onClick = { vm.logout() }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Panel3)) { Text("ログアウト", fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+        Spacer(Modifier.height(8.dp))
+        Text("表示言語", color = Muted, fontSize = 13.sp)
+        Box(Modifier.fillMaxWidth()) {
+          Button(
+            onClick = { languageMenuExpanded = true },
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Panel3),
+          ) { Text("${state.language.displayName}  ▾", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+          DropdownMenu(expanded = languageMenuExpanded, onDismissRequest = { languageMenuExpanded = false }) {
+            AppLanguage.entries.forEach { language ->
+              DropdownMenuItem(
+                text = { MaterialText(language.displayName) },
+                onClick = {
+                  vm.setLanguage(language)
+                  languageMenuExpanded = false
+                },
+              )
+            }
+          }
+        }
       }
     }
     GlassPanel(Modifier.weight(1f).fillMaxHeight()) {

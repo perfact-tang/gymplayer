@@ -1,16 +1,16 @@
-id,number,name,bodyPart,icon,targetSets,defaultWeight,imageStorageUrl,updatedAt
-machine-1,1,サイドレイズ,肩,💪,3,65,gs://gymplayer-2bc5b.firebasestorage.app/gym/サイドレイズ.png,
-machine-5,5,インクラインプレス,胸,🦅,3,50,gs://gymplayer-2bc5b.firebasestorage.app/gym/インクラインプレス.png,
-machine-8,8,チェストプレス,胸,🦅,3,190,gs://gymplayer-2bc5b.firebasestorage.app/gym/チェストプレス.png,
-machine-11a,11a,ペックフライ,胸,🦅,3,90,gs://gymplayer-2bc5b.firebasestorage.app/gym/ペックフライ.png,
-machine-11b,11b,ペックフライ,三角筋,👐,3,50,gs://gymplayer-2bc5b.firebasestorage.app/gym/ペックフライ.png,
-machine-12,12,リアデルトフライ,肩,💪,3,50,gs://gymplayer-2bc5b.firebasestorage.app/gym/リアデルトフライ.png,
-machine-15,15,シーテッドレッグカール,脚,🦵,3,50,gs://gymplayer-2bc5b.firebasestorage.app/gym/シーテッドレッグカール.png,
-machine-18,18,プローンレッグカール,脚,🦵,3,105,gs://gymplayer-2bc5b.firebasestorage.app/gym/プローンレッグカール.png,
-machine-21,21,レッグプレス,脚,🦵,3,15,gs://gymplayer-2bc5b.firebasestorage.app/gym/レッグプレス.png,
-machine-31,31,ラットプルダウン,背中,👐,3,190,gs://gymplayer-2bc5b.firebasestorage.app/gym/ラットプルダウン.png,
-machine-33,33,ロウイングマシン,背中,👐,3,190,gs://gymplayer-2bc5b.firebasestorage.app/gym/ロウイングマシン.png,
-machine-37,37,アームカール,腕,💪,3,60,gs://gymplayer-2bc5b.firebasestorage.app/gym/アームカール.png,
-machine-39,39,プッシュダウン,腕,💪,3,150,gs://gymplayer-2bc5b.firebasestorage.app/gym/プッシュダウン.png,
-machine-44,44,アブドミナル,腹,🍫,3,150,gs://gymplayer-2bc5b.firebasestorage.app/gym/アブドミナル.png,
-machine-45,45,ロータリートルソー,腹,🍫,3,50,gs://gymplayer-2bc5b.firebasestorage.app/gym/ロータリートルソー.png,
+id,number,name,bodyPart,icon,targetSets,defaultWeight,imageStorageUrl,updatedAt,name_ja,name_zh,name_en,name_ko,bodyPart_ja,bodyPart_zh,bodyPart_en,bodyPart_ko
+machine-1,1,サイドレイズ,肩,💪,3,65,gs://gymplayer-2bc5b.firebasestorage.app/gym/サイドレイズ.png,,サイドレイズ,侧平举,Lateral Raise,사이드 레이즈,肩,肩部,Shoulders,어깨
+machine-5,5,インクラインプレス,胸,🦅,3,50,gs://gymplayer-2bc5b.firebasestorage.app/gym/インクラインプレス.png,,インクラインプレス,上斜推胸,Incline Press,인클라인 프레스,胸,胸部,Chest,가슴
+machine-8,8,チェストプレス,胸,🦅,3,190,gs://gymplayer-2bc5b.firebasestorage.app/gym/チェストプレス.png,,チェストプレス,坐姿推胸,Chest Press,체스트 프레스,胸,胸部,Chest,가슴
+machine-11a,11a,ペックフライ,胸,🦅,3,90,gs://gymplayer-2bc5b.firebasestorage.app/gym/ペックフライ.png,,ペックフライ,蝴蝶机夹胸,Pec Fly,펙 덱 플라이,胸,胸部,Chest,가슴
+machine-11b,11b,ペックフライ,三角筋,👐,3,50,gs://gymplayer-2bc5b.firebasestorage.app/gym/ペックフライ.png,,ペックフライ,蝴蝶机夹胸,Pec Fly,펙 덱 플라이,三角筋,三角肌,Deltoids,삼각근
+machine-12,12,リアデルトフライ,肩,💪,3,50,gs://gymplayer-2bc5b.firebasestorage.app/gym/リアデルトフライ.png,,リアデルトフライ,反向飞鸟,Rear Delt Fly,리어 델토이드 플라이,肩,肩部,Shoulders,어깨
+machine-15,15,シーテッドレッグカール,脚,🦵,3,50,gs://gymplayer-2bc5b.firebasestorage.app/gym/シーテッドレッグカール.png,,シーテッドレッグカール,坐姿腿弯举,Seated Leg Curl,시티드 레그 컬,脚,腿部,Legs,다리
+machine-18,18,プローンレッグカール,脚,🦵,3,105,gs://gymplayer-2bc5b.firebasestorage.app/gym/プローンレッグカール.png,,プローンレッグカール,卧姿腿弯举,Prone Leg Curl,프론 레그 컬,脚,腿部,Legs,다리
+machine-21,21,レッグプレス,脚,🦵,3,15,gs://gymplayer-2bc5b.firebasestorage.app/gym/レッグプレス.png,,レッグプレス,腿举,Leg Press,레그 프레스,脚,腿部,Legs,다리
+machine-31,31,ラットプルダウン,背中,👐,3,190,gs://gymplayer-2bc5b.firebasestorage.app/gym/ラットプルダウン.png,,ラットプルダウン,高位下拉,Lat Pulldown,랫 풀 다운,背中,背部,Back,등
+machine-33,33,ロウイングマシン,背中,👐,3,190,gs://gymplayer-2bc5b.firebasestorage.app/gym/ロウイングマシン.png,,ロウイングマシン,划船机,Rowing Machine,로잉 머신,背中,背部,Back,등
+machine-37,37,アームカール,腕,💪,3,60,gs://gymplayer-2bc5b.firebasestorage.app/gym/アームカール.png,,アームカール,手臂弯举,Arm Curl,암 컬,腕,手臂,Arms,팔
+machine-39,39,プッシュダウン,腕,💪,3,150,gs://gymplayer-2bc5b.firebasestorage.app/gym/プッシュダウン.png,,プッシュダウン,绳索下压,Pushdown,푸시 다운,腕,手臂,Arms,팔
+machine-44,44,アブドミナル,腹,🍫,3,150,gs://gymplayer-2bc5b.firebasestorage.app/gym/アブドミナル.png,,アブドミナル,卷腹机,Abdominal Crunch,앱도미널,腹,腹部,Abs,복근
+machine-45,45,ロータリートルソー,腹,🍫,3,50,gs://gymplayer-2bc5b.firebasestorage.app/gym/ロータリートルソー.png,,ロータリートルソー,旋转扭腰机,Rotary Torso,로터리 토르소,腹,腹部,Abs,복근

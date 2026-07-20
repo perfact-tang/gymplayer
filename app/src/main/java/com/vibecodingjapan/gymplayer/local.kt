@@ -27,6 +27,12 @@ data class MachineEntity(
   val imageStorageUrl: String?,
   val localImagePath: String?,
   val updatedAt: Long,
+  val nameZh: String,
+  val nameEn: String,
+  val nameKo: String,
+  val bodyPartZh: String,
+  val bodyPartEn: String,
+  val bodyPartKo: String,
 )
 
 @Entity(tableName = "workout_sessions")
@@ -172,7 +178,7 @@ interface GymPlayerDao {
 
 @Database(
   entities = [UserSessionEntity::class, MachineEntity::class, WorkoutSessionEntity::class, WorkoutSetEntity::class, ActiveWorkoutDraftEntity::class, DeletedWorkoutSessionEntity::class, PlaylistEntity::class, TrackEntity::class],
-  version = 6,
+  version = 7,
   exportSchema = false,
 )
 abstract class GymPlayerDatabase : RoomDatabase() {
@@ -277,5 +283,17 @@ val MIGRATION_5_6 =
         )
         """.trimIndent(),
       )
+    }
+  }
+
+val MIGRATION_6_7 =
+  object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+      db.execSQL("ALTER TABLE machines ADD COLUMN nameZh TEXT NOT NULL DEFAULT ''")
+      db.execSQL("ALTER TABLE machines ADD COLUMN nameEn TEXT NOT NULL DEFAULT ''")
+      db.execSQL("ALTER TABLE machines ADD COLUMN nameKo TEXT NOT NULL DEFAULT ''")
+      db.execSQL("ALTER TABLE machines ADD COLUMN bodyPartZh TEXT NOT NULL DEFAULT ''")
+      db.execSQL("ALTER TABLE machines ADD COLUMN bodyPartEn TEXT NOT NULL DEFAULT ''")
+      db.execSQL("ALTER TABLE machines ADD COLUMN bodyPartKo TEXT NOT NULL DEFAULT ''")
     }
   }

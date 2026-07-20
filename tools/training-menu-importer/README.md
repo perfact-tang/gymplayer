@@ -10,8 +10,14 @@ The GymPlayer app currently reads the training menu master data from the Firesto
 | --- | --- | --- | --- |
 | `id` | Yes | document id | `machine-44` |
 | `number` | Yes | `number` | `44` or `11a` |
-| `name` | Yes | `name` | `レッグプレス` |
-| `bodyPart` | Yes | `bodyPart` | `脚` |
+| `name_ja` | Yes* | `name`, `translations.ja.name` | `レッグプレス` |
+| `name_zh` | No | `translations.zh-CN.name` | `腿举` |
+| `name_en` | No | `translations.en.name` | `Leg Press` |
+| `name_ko` | No | `translations.ko.name` | `레그 프레스` |
+| `bodyPart_ja` | Yes* | `bodyPart`, `translations.ja.bodyPart` | `脚` |
+| `bodyPart_zh` | No | `translations.zh-CN.bodyPart` | `腿部` |
+| `bodyPart_en` | No | `translations.en.bodyPart` | `Legs` |
+| `bodyPart_ko` | No | `translations.ko.bodyPart` | `하체` |
 | `icon` | No | `icon` | `🏋` |
 | `targetSets` | No | `targetSets` | `3` |
 | `defaultWeight` | No | `defaultWeight` | `40` |
@@ -19,6 +25,8 @@ The GymPlayer app currently reads the training menu master data from the Firesto
 | `updatedAt` | No | `updatedAt` | `1783242000000` |
 
 If `updatedAt` is empty, the importer uses the current timestamp for every row in that run.
+
+`name_ja` and `bodyPart_ja` are required for new CSV files. Legacy `name` and `bodyPart` columns remain supported and are treated as Japanese. Empty Chinese, English, or Korean values fall back to Japanese in the generated Firestore document.
 
 `number` is stored as a string so one physical machine can have multiple menu entries such as `11a` and `11b`. The value must start with digits and may end with letters. Keep each CSV `id` unique, for example `machine-11a` and `machine-11b`.
 
@@ -93,5 +101,5 @@ npm run import -- --csv sample-training-menu.csv --project-id your-firebase-proj
 
 
 ```bash
-npm run import -- --csv sample-training-menu.csv --service-account src/keys/gymplayer-2bc5b-firebase-adminsdk-fbsvc-606ec218c8.json
+npm run import -- --csv sample-training-menu.csv --service-account src/keys/gymplayer-2bc5b-firebase-adminsdk-fbsvc-2510642a3b.json
 ```

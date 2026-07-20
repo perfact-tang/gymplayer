@@ -14,6 +14,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +43,7 @@ class GymRepository(private val context: Context) {
   private val db =
     Room.databaseBuilder(context, GymPlayerDatabase::class.java, "gymplayer.db")
       .fallbackToDestructiveMigration(false)
-      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+      .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
       .build()
   private val dao = db.dao()
   private val uidKey = stringPreferencesKey("uid")
@@ -52,6 +53,8 @@ class GymRepository(private val context: Context) {
   private val weightUnitKey = stringPreferencesKey("weight_unit")
   private val restVoiceVolumeKey = floatPreferencesKey("rest_voice_volume")
   private val restAlarmVolumeKey = floatPreferencesKey("rest_alarm_volume")
+  private val languageCodeKey = stringPreferencesKey("language_code")
+  private val languageDirtyKey = booleanPreferencesKey("language_dirty")
 
   val session: Flow<UserSession> =
     context.sessionStore.data.map { prefs ->
@@ -69,9 +72,14 @@ class GymRepository(private val context: Context) {
   val restAlarmVolume: Flow<Float> =
     context.sessionStore.data.map { prefs -> (prefs[restAlarmVolumeKey] ?: 100f).coerceIn(50f, 100f) }
 
+  val language: Flow<AppLanguage> =
+    context.sessionStore.data.map { prefs -> AppLanguage.fromCode(prefs[languageCodeKey]) }
+
   val machines: Flow<List<Machine>> =
     dao.machines().map { rows ->
-      rows.map { Machine(it.id, it.number, it.name, it.bodyPart, it.icon, it.targetSets, it.defaultWeight, it.imageStorageUrl, it.localImagePath, it.updatedAt) }
+      rows.map {
+        Machine(it.id, it.number, it.name, it.bodyPart, it.icon, it.targetSets, it.defaultWeight, it.imageStorageUrl, it.localImagePath, it.updatedAt, it.nameZh, it.nameEn, it.nameKo, it.bodyPartZh, it.bodyPartEn, it.bodyPartKo)
+      }
     }
 
   val sessions: Flow<List<WorkoutSession>> =
@@ -210,24 +218,33 @@ class GymRepository(private val context: Context) {
     context.sessionStore.edit { it[restAlarmVolumeKey] = volume.coerceIn(50f, 100f) }
   }
 
+  suspend fun setLanguage(language: AppLanguage, markDirty: Boolean = true) {
+    context.sessionStore.edit {
+      it[languageCodeKey] = language.code
+      if (markDirty) it[languageDirtyKey] = true
+    }
+  }
+
   suspend fun sync(onProgress: (SyncProgress) -> Unit = {}): Result<String> =
     withContext(Dispatchers.IO) {
       runCatching {
-        val tasks = listOf("通信確認", "ログイン確認", "クラウド削除", "未同期データ送信", "マシン情報取得", "マシン画像取得", "完了")
+        val tasks = listOf("通信確認", "ログイン確認", "言語設定同期", "クラウド削除", "未同期データ送信", "マシン情報取得", "マシン画像取得", "完了")
         fun progress(index: Int, task: String) = onProgress(SyncProgress((index + 1) / tasks.size.toFloat(), task, tasks.take(index + 1)))
         progress(0, "通信確認")
         if (!isOnline()) return@runCatching "オフラインです。ネットワークがありません。"
         progress(1, "ログイン確認")
         val current = session.first()
         require(current.loggedIn && current.uid.isNotBlank()) { "ログインしてください" }
-        progress(2, "クラウド削除")
+        progress(2, "言語設定同期")
+        syncLanguagePreference(current.uid)
+        progress(3, "クラウド削除")
         val deleted = dao.deletedWorkoutSessions()
         for (row in deleted) {
           val uid = row.uid.ifBlank { current.uid }
           firestore.collection("users").document(uid).collection("workoutSessions").document(row.id).delete().await()
           dao.clearDeletedWorkoutSession(row.id)
         }
-        progress(3, "未同期データ送信")
+        progress(4, "未同期データ送信")
         val unsynced = dao.unsyncedSessions()
         for (row in unsynced) {
           val sets = dao.setsForSession(row.id)
@@ -236,7 +253,7 @@ class GymRepository(private val context: Context) {
             .await()
           dao.markSessionSynced(row.id)
         }
-        progress(4, "マシン情報取得")
+        progress(5, "マシン情報取得")
         val machineSnapshot = firestore.collection("machines").get().await()
         val remoteMachines =
           machineSnapshot.documents.mapNotNull { doc ->
@@ -252,19 +269,41 @@ class GymRepository(private val context: Context) {
               imageStorageUrl = imageStorageUrl,
               localImagePath =
                 imageStorageUrl?.let {
-                  progress(5, "マシン画像取得")
+                  progress(6, "マシン画像取得")
                   downloadMachineImageIfExists(doc.id, it)
                 },
               updatedAt = doc.getLong("updatedAt") ?: System.currentTimeMillis(),
+              nameZh = doc.translation("zh-CN", "name"),
+              nameEn = doc.translation("en", "name"),
+              nameKo = doc.translation("ko", "name"),
+              bodyPartZh = doc.translation("zh-CN", "bodyPart"),
+              bodyPartEn = doc.translation("en", "bodyPart"),
+              bodyPartKo = doc.translation("ko", "bodyPart"),
             )
           }
         dao.clearMachines()
         if (remoteMachines.isNotEmpty()) dao.upsertMachines(remoteMachines)
         context.sessionStore.edit { it[lastSyncKey] = System.currentTimeMillis() }
-        progress(6, "完了")
+        progress(7, "完了")
         "同期しました。アップロードに成功しました。"
       }
     }
+
+  private suspend fun syncLanguagePreference(uid: String) {
+    val prefs = context.sessionStore.data.first()
+    val localLanguage = AppLanguage.fromCode(prefs[languageCodeKey])
+    val localDirty = prefs[languageDirtyKey] == true
+    val ref = firestore.collection("users").document(uid).collection("settings").document("app")
+    val remote = ref.get().await()
+    val remoteCode = remote.getString("languageCode")
+    if (shouldUploadLanguage(localDirty, remote.exists(), remoteCode)) {
+      ref.set(mapOf("languageCode" to localLanguage.code, "updatedAt" to FieldValue.serverTimestamp())).await()
+      context.sessionStore.edit { it[languageDirtyKey] = false }
+    } else {
+      setLanguage(AppLanguage.fromCode(remoteCode), markDirty = false)
+      context.sessionStore.edit { it[languageDirtyKey] = false }
+    }
+  }
 
   private fun isOnline(): Boolean {
     val manager = context.getSystemService(ConnectivityManager::class.java)
@@ -330,6 +369,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
     viewModelScope.launch { repository.weightUnit.collect { unit -> _state.update { it.copy(weightUnit = unit) } } }
     viewModelScope.launch { repository.restVoiceVolume.collect { volume -> _state.update { it.copy(restVoiceVolume = volume) } } }
     viewModelScope.launch { repository.restAlarmVolume.collect { volume -> _state.update { it.copy(restAlarmVolume = volume) } } }
+    viewModelScope.launch { repository.language.collect { language -> _state.update { it.copy(language = language) } } }
     viewModelScope.launch {
       combine(repository.activeWorkoutDraft, repository.activeWorkoutDraftSets) { draft, sets -> draft to sets }
         .collect { (draft, sets) -> restoreActiveWorkoutIfReady(draft, sets) }
@@ -740,7 +780,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
         .onSuccess {
           _state.update { it.copy(message = "ログインしました", screen = Screen.Home) }
         }
-        .onFailure { error -> _state.update { it.copy(message = error.message ?: "ログインできませんでした") } }
+        .onFailure { _state.update { it.copy(message = "ログインできませんでした") } }
     }
   }
 
@@ -753,7 +793,7 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
 
   fun sync() {
     launchSafe {
-      val allTasks = listOf("通信確認", "ログイン確認", "クラウド削除", "未同期データ送信", "マシン情報取得", "マシン画像取得", "完了")
+      val allTasks = listOf("通信確認", "ログイン確認", "言語設定同期", "クラウド削除", "未同期データ送信", "マシン情報取得", "マシン画像取得", "完了")
       _state.update {
         it.copy(
           syncDialog = SyncDialogState(visible = true, processing = true, title = "処理中", message = "同期を開始しました", progress = 0f, tasks = allTasks, currentTask = allTasks.first()),
@@ -778,9 +818,9 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
         _state.update {
           it.copy(syncDialog = SyncDialogState(visible = true, processing = false, title = "同期完了", message = message, progress = 1f, tasks = allTasks, currentTask = "完了"))
         }
-      }.onFailure { error ->
+      }.onFailure {
         _state.update {
-          it.copy(syncDialog = SyncDialogState(visible = true, processing = false, title = "同期失敗", message = error.message ?: "同期できませんでした", progress = 1f, tasks = allTasks, currentTask = "失敗"))
+          it.copy(syncDialog = SyncDialogState(visible = true, processing = false, title = "同期失敗", message = "同期できませんでした", progress = 1f, tasks = allTasks, currentTask = "失敗"))
         }
       }
     }
@@ -800,6 +840,10 @@ class AppViewModel(private val repository: GymRepository) : androidx.lifecycle.V
 
   fun setRestAlarmVolume(volume: Float) {
     launchSafe { repository.setRestAlarmVolume(volume) }
+  }
+
+  fun setLanguage(language: AppLanguage) {
+    launchSafe { repository.setLanguage(language) }
   }
 
   fun deleteWorkoutSet(setId: String) {
@@ -869,6 +913,7 @@ data class AppState(
   val weightUnit: WeightUnit = WeightUnit.LB,
   val restVoiceVolume: Float = 1f,
   val restAlarmVolume: Float = 100f,
+  val language: AppLanguage = AppLanguage.JAPANESE,
   val workoutSets: List<WorkoutSet> = emptyList(),
   val workoutStartedAt: LocalDateTime? = null,
   val selectedWorkoutMachineIds: List<String> = emptyList(),
@@ -911,7 +956,7 @@ private fun androidx.lifecycle.ViewModel.launchSafe(block: suspend () -> Unit) {
   viewModelScope.launch { block() }
 }
 
-private fun Machine.toEntity() = MachineEntity(id, number, name, bodyPart, icon, targetSets, defaultWeight, imageStorageUrl, localImagePath, updatedAt)
+private fun Machine.toEntity() = MachineEntity(id, number, name, bodyPart, icon, targetSets, defaultWeight, imageStorageUrl, localImagePath, updatedAt, nameZh, nameEn, nameKo, bodyPartZh, bodyPartEn, bodyPartKo)
 private fun Playlist.toEntity() = PlaylistEntity(id, name, folderUri, createdAt)
 private fun Track.toEntity() = TrackEntity(id, playlistId, uri, title, artist, durationMs, orderIndex)
 private fun ActiveWorkoutDraft.toEntity() =
@@ -974,3 +1019,9 @@ private fun com.google.firebase.firestore.DocumentSnapshot.machineNumberString()
     is Number -> value.toLong().toString()
     else -> null
   }
+
+private fun com.google.firebase.firestore.DocumentSnapshot.translation(languageCode: String, field: String): String {
+  val translations = get("translations") as? Map<*, *> ?: return ""
+  val language = translations[languageCode] as? Map<*, *> ?: return ""
+  return (language[field] as? String).orEmpty().trim()
+}

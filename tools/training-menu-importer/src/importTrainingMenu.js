@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 import { parse } from "csv-parse/sync";
 import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -10,8 +11,13 @@ import { getFirestore } from "firebase-admin/firestore";
 const DEFAULT_COLLECTION = "machines";
 const DEFAULT_IMAGE_PREFIX = "machines";
 const DEFAULT_IMAGE_EXTENSION = "png";
-const REQUIRED_COLUMNS = ["id", "number", "name", "bodyPart"];
-const OPTIONAL_COLUMNS = ["icon", "targetSets", "defaultWeight", "imageStorageUrl", "updatedAt"];
+const REQUIRED_COLUMNS = ["id", "number"];
+const OPTIONAL_COLUMNS = [
+  "name", "bodyPart",
+  "name_ja", "name_zh", "name_en", "name_ko",
+  "bodyPart_ja", "bodyPart_zh", "bodyPart_en", "bodyPart_ko",
+  "icon", "targetSets", "defaultWeight", "imageStorageUrl", "updatedAt",
+];
 const MAX_BATCH_WRITES = 500;
 
 function usage() {
@@ -85,6 +91,7 @@ function readCsv(csvPath) {
     columns: true,
     skip_empty_lines: true,
     trim: true,
+    relax_column_count: true,
   });
 
   if (records.length === 0) throw new Error("CSV has no data rows");
@@ -171,14 +178,14 @@ function normalizeRecords(records, options) {
   return records.map((record, index) => {
     const rowNumber = index + 2;
     const id = String(record.id ?? "").trim();
-    const name = String(record.name ?? "").trim();
-    const bodyPart = String(record.bodyPart ?? "").trim();
+    const name = String(record.name_ja ?? record.name ?? "").trim();
+    const bodyPart = String(record.bodyPart_ja ?? record.bodyPart ?? "").trim();
 
     if (!id) throw new Error(`Row ${rowNumber}: id is required`);
     if (seenIds.has(id)) throw new Error(`Row ${rowNumber}: duplicate id "${id}"`);
     seenIds.add(id);
-    if (!name) throw new Error(`Row ${rowNumber}: name is required`);
-    if (!bodyPart) throw new Error(`Row ${rowNumber}: bodyPart is required`);
+    if (!name) throw new Error(`Row ${rowNumber}: name_ja (or legacy name) is required`);
+    if (!bodyPart) throw new Error(`Row ${rowNumber}: bodyPart_ja (or legacy bodyPart) is required`);
 
     const number = parseMachineNumber(record.number, rowNumber);
     const targetSets = parseInteger(record.targetSets, "targetSets", rowNumber, 3);
@@ -186,6 +193,7 @@ function normalizeRecords(records, options) {
     const updatedAt = parseTimestamp(record.updatedAt, rowNumber, now);
     const imageStorageUrl = buildImageStorageUrl(record.imageStorageUrl, id, rowNumber, options);
     const icon = String(record.icon ?? "").trim() || "🏋";
+    const translated = (field, fallback) => String(record[field] ?? "").trim() || fallback;
 
     if (targetSets <= 0) throw new Error(`Row ${rowNumber}: targetSets must be greater than 0`);
     if (defaultWeight < 0) throw new Error(`Row ${rowNumber}: defaultWeight must be 0 or greater`);
@@ -196,6 +204,12 @@ function normalizeRecords(records, options) {
         number,
         name,
         bodyPart,
+        translations: {
+          ja: { name, bodyPart },
+          "zh-CN": { name: translated("name_zh", name), bodyPart: translated("bodyPart_zh", bodyPart) },
+          en: { name: translated("name_en", name), bodyPart: translated("bodyPart_en", bodyPart) },
+          ko: { name: translated("name_ko", name), bodyPart: translated("bodyPart_ko", bodyPart) },
+        },
         icon,
         targetSets,
         defaultWeight,
@@ -268,6 +282,9 @@ async function main() {
       number: item.data.number,
       name: item.data.name,
       bodyPart: item.data.bodyPart,
+      name_zh: item.data.translations["zh-CN"].name,
+      name_en: item.data.translations.en.name,
+      name_ko: item.data.translations.ko.name,
       imageStorageUrl: item.data.imageStorageUrl,
       targetSets: item.data.targetSets,
       defaultWeight: item.data.defaultWeight,
@@ -284,7 +301,11 @@ async function main() {
   console.log(`Overwrite complete for collection "${args.collection}". Deleted ${result.deleted}, wrote ${result.written}.`);
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
+}
+
+export { assertColumns, normalizeRecords };

@@ -6,7 +6,8 @@
   "description": "Overwrite Firestore training menu master data from a CSV file.",
   "scripts": {
     "import": "node src/importTrainingMenu.js",
-    "dry-run": "node src/importTrainingMenu.js --csv sample-training-menu.csv --dry-run"
+    "dry-run": "node src/importTrainingMenu.js --csv sample-training-menu.csv --dry-run",
+    "test": "node --test"
   },
   "dependencies": {
     "csv-parse": "^7.0.1",

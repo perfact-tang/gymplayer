@@ -3,9 +3,24 @@ package com.vibecodingjapan.gymplayer
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
+import java.util.Locale
 import kotlin.math.roundToInt
 
 data class UserSession(val uid: String = "", val email: String = "", val loggedIn: Boolean = false, val lastSyncAt: Long = 0)
+
+enum class AppLanguage(val code: String, val displayName: String, val locale: Locale) {
+  JAPANESE("ja", "日本語", Locale.JAPAN),
+  CHINESE("zh-CN", "简体中文", Locale.SIMPLIFIED_CHINESE),
+  ENGLISH("en", "English", Locale.ENGLISH),
+  KOREAN("ko", "한국어", Locale.KOREAN);
+
+  companion object {
+    fun fromCode(code: String?): AppLanguage = entries.firstOrNull { it.code.equals(code, ignoreCase = true) } ?: JAPANESE
+  }
+}
+
+fun shouldUploadLanguage(localDirty: Boolean, remoteExists: Boolean, remoteCode: String?): Boolean =
+  localDirty || !remoteExists || AppLanguage.entries.none { it.code == remoteCode }
 
 data class Machine(
   val id: String,
@@ -18,7 +33,29 @@ data class Machine(
   val imageStorageUrl: String? = null,
   val localImagePath: String? = null,
   val updatedAt: Long = 0,
-)
+  val nameZh: String = "",
+  val nameEn: String = "",
+  val nameKo: String = "",
+  val bodyPartZh: String = "",
+  val bodyPartEn: String = "",
+  val bodyPartKo: String = "",
+) {
+  fun localizedName(language: AppLanguage): String =
+    when (language) {
+      AppLanguage.JAPANESE -> name
+      AppLanguage.CHINESE -> nameZh.ifBlank { name }
+      AppLanguage.ENGLISH -> nameEn.ifBlank { name }
+      AppLanguage.KOREAN -> nameKo.ifBlank { name }
+    }
+
+  fun localizedBodyPart(language: AppLanguage): String =
+    when (language) {
+      AppLanguage.JAPANESE -> bodyPart
+      AppLanguage.CHINESE -> bodyPartZh.ifBlank { bodyPart }
+      AppLanguage.ENGLISH -> bodyPartEn.ifBlank { bodyPart }
+      AppLanguage.KOREAN -> bodyPartKo.ifBlank { bodyPart }
+    }
+}
 
 data class WorkoutSet(
   val id: String = UUID.randomUUID().toString(),

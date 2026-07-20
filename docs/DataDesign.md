@@ -7,7 +7,7 @@ GymPlayer is local-first. The app starts without network validation and writes w
 | Table | Purpose | Key fields |
 | --- | --- | --- |
 | `user_session` | Cached Firebase login state | `uid`, `email`, `loggedIn`, `lastSyncAt` |
-| `machines` | Cached gym machine master data | `id`, `number`, `name`, `bodyPart`, `icon`, `targetSets`, `defaultWeight`, `imageStorageUrl`, `updatedAt` |
+| `machines` | Cached multilingual gym machine master data | `id`, `number`, Japanese `name/bodyPart`, translated name/body-part fields, `icon`, `targetSets`, `defaultWeight`, `imageStorageUrl`, `updatedAt` |
 | `workout_sessions` | One workout day/session | `id`, `uid`, `date`, `startedAt`, `endedAt`, `systolic`, `diastolic`, `pulse`, `weightKg`, `bodyFatPercent`, `muscleMassKg`, `bodyWaterPercent`, `bmi`, `basalMetabolism`, `visceralFat`, `synced` |
 | `workout_sets` | Per-machine set records | `id`, `sessionId`, `machineId`, `machineNumber`, `machineName`, `setIndex`, `weightKg`, `reps`, `completedAt` |
 | `playlists` | Local music playlists | `id`, `name`, `folderUri`, `createdAt` |
@@ -72,6 +72,12 @@ Example machine document:
   "number": "11a",
   "name": "チェストプレス",
   "bodyPart": "胸部",
+  "translations": {
+    "ja": {"name": "チェストプレス", "bodyPart": "胸部"},
+    "zh-CN": {"name": "坐姿推胸", "bodyPart": "胸部"},
+    "en": {"name": "Chest Press", "bodyPart": "Chest"},
+    "ko": {"name": "체스트 프레스", "bodyPart": "가슴"}
+  },
   "icon": "machine_chest_press",
   "targetSets": 3,
   "defaultWeight": 40,
@@ -88,6 +94,8 @@ Machine images are stored in Firebase Storage. `imageStorageUrl` keeps the canon
 - `workout_sessions.synced = true`: uploaded successfully to Firestore.
 - `user_session.lastSyncAt`: last successful manual sync time.
 - Machine data is server-owned; the newest Firestore `updatedAt` wins when downloaded.
+- App language is stored at `users/{uid}/settings/app` as `languageCode` (`ja`, `zh-CN`, `en`, or `ko`) plus a server `updatedAt` timestamp. A locally changed language is uploaded on manual sync; otherwise the cloud value is restored.
+- Legacy machine documents without `translations` remain valid. Missing translations fall back to Japanese `name/bodyPart`.
 
 ## Security Rules
 
