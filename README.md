@@ -122,3 +122,19 @@ If you face similar frustrations at the gym or have cool ideas for interactions,
 * Android APK: [gymplayer-ver1.apk](app_installfile/gymplayer-ver1.apk)
 * Email: test@vibecodingjapan.com
 * Password: testtest
+
+---
+
+#  ❣️ How Codex and GPT-5.6 were used
+Next, I’d love to share how ChatGPT, Codex, and GPT-5.5 and 5.6 actually helped me out.
+
+First, I started by writing down my requirements in a README file, along with a few design mockups. What blew my mind was using Plan Mode. I had it map out the entire plan first, but instead of executing right away, I switched over to Goal Mode to let it run. And honestly, this Android app worked on the very first try! That was such an emotional moment for me. It automatically detected that I had the latest Android Studio installed—along with the Android CLI and Android Skills—and handled the whole build seamlessly. If you’ve ever tried VibeCoding, you know Android dev is way harder than standard web projects. But it didn't keep stopping to ask me questions—it just nailed it in one go.
+![](howcodexuse_001.png)
+
+Second, bluetooth control. If you were to write this from scratch, dealing with all the modes, channels, and complex API calls is a massive headache. I just had a sudden idea, bounced it off GPT-5.5 and 5.6, and within just one or two turns, it worked perfectly. That really blew me away.
+![](howcodexuse_002.png)
+
+Finally, data syncing with Firebase Firestore. It picked up on the Android Firebase Skills right away, setting up an Offline-First architecture with seamless data sync. For native developers, this is usually a huge pain point.
+
+These three things left a huge impression on me, and I’m super grateful for Codex and GPT-5.5 and 5.6.
+![](howcodexuse_003.png)
