@@ -1,182 +1,124 @@
-# GymPlayer
+# 🏋️‍♂️ GymPlayer: Powering Every Lift with Rhythm and Grace!
 
-![](2026-07-06-00-42-37.png)
-GymPlayerは、ジムで音楽を聴きながらトレーニングを進め、セット・休憩・身体データをその場で記録できるAndroidアプリです。Bluetoothイヤホンで音楽に集中していると休憩タイマーを聞き逃しやすい、混雑時にマシンを移動すると進捗がわからなくなる、紙やメモアプリに残した記録をあとで分析しづらい、というジム現場の小さなストレスをまとめて解決することを目指しています。
+> **🎵 Listen to your custom AI music and elegantly take full control via Bluetooth headphones—without ever touching the screen. GymPlayer isn't just a workout tracker; it's your invisible personal trainer and gym etiquette butler.**
 
-## 解決するペインポイント
+![](image_001_en.png)
+![](image_002_en.png)
 
-- 音楽を聴きながら、休憩タイマー音も聞ける  
-  Media3/ExoPlayerで音楽を再生しつつ、休憩終了時にはアラーム音を鳴らします。特にBluetoothイヤホン利用時でも、音楽だけで休憩終了に気づけない問題を減らします。
-- トレーニングデータを記録できる  
-  マシン、セット数、重量、回数、開始前の血圧・脈拍、終了後の体重・体脂肪率・筋肉量などを保存できます。
-- 混雑時に途中でマシンを変えても進捗を続けられる  
-  複数マシンを選択してワークアウトを開始でき、各マシンごとの完了セットを管理します。ジムが混んでいて順番を入れ替えても、残りセットや進捗を確認しながら続けられます。
-- 記録をIT化し、将来の分析に使える  
-  ローカルDBに保存したトレーニング履歴をFirebaseに同期できます。今後、部位別ボリューム、重量推移、体組成変化などの分析につなげやすいデータ基盤になります。
+## 💡 Original Vision: A Geek’s Romance Born from Real Pain Points
 
-![](2026-07-06-00-43-29.png)
+The market is flooded with fitness apps, yet in actual gym settings, they often overlook subtle but critical pain points:
 
-![](2026-07-06-00-43-50.png)
+* Constant switching between music apps breaks your flow state.
+* The awkwardness of logging sets with pen and paper right after heavy lifting.
+* Social discomfort caused by occupying machines longer than necessary due to unclear rest intervals.
 
-## 主な機能
+As a developer who loves lifting and enjoys creating AI music with Suno, I decided to build my own Android app—one that is **more meticulous, human-centric, and attuned to gym culture**. Thus, GymPlayer was born! It seamlessly merges music, logging, and etiquette to elevate workout efficiency and experience to a whole new level!
 
-- 音楽プレイヤー
-  - 端末内フォルダからプレイリストを作成
-  - 曲の再生、一時停止、次/前の曲、曲順保存
-  - プレイリストループ、1曲リピート、シャッフル再生
-  - Bluetoothイヤホンなどのメディアボタン操作に対応
-- トレーニング管理
-  - Firebaseからマシン一覧とマシン画像を同期
-  - 今日使うマシンを複数選択
-  - セットごとに重量・回数を記録
-  - 休憩タイマーと休憩終了アラーム
-  - lb/kg表示切り替え
-- 身体データ記録
-  - トレーニング前の血圧・脈拍
-  - トレーニング後の体重、体脂肪率、筋肉量、体水分率、BMI、基礎代謝、内臓脂肪
-- 履歴・同期
-  - Roomによるローカル保存
-  - Firebase Authenticationでログイン
-  - Firestoreへワークアウト履歴を同期
-  - 削除したワークアウトも次回同期時にクラウドへ反映
+---
 
-## 技術スタック
+## 🚀 Key Highlights & Innovations (Why GymPlayer?)
 
-- Kotlin
-- Android Jetpack Compose
-- Media3 ExoPlayer / MediaSession
-- Room
-- DataStore
-- Firebase Authentication
-- Cloud Firestore
-- Firebase Storage
-- Gradle Kotlin DSL
+### 🎧 1. Revolutionary "Headphone-Driven" Touchless Interaction (⭐ Core Innovation)
 
-## セットアップ
+This is the feature I am most proud of! **Log your entire workout without ever touching your tablet screen.**
 
-### 1. Firebaseプロジェクトを作成
+* **Operating Logic**: Cleverly redefines Bluetooth headphone controls (Previous Track / Play-Pause) as app commands.
+* **Elegant Closed Loop**:
+1. **Start Rest**: Finish a set, double-press (Previous Track), and the app voice announces: *"Set completed, entering rest mode,"* automatically starting the countdown.
+2. **Next Set**: When the rest time ends, a prompt sounds in your headphones. Single-press (Play-Pause), and the app automatically resumes music playback while recording the transition to the next set.
 
-1. [Firebase Console](https://console.firebase.google.com/)でプロジェクトを作成します。
-2. Androidアプリを追加します。
-3. Android package nameには次を指定します。
 
-```text
-com.vibecodingjapan.gymplayer
-```
+* **The Experience**: To onlookers, you look like a focused pro training with headphones on—saying goodbye to the chaos of setting down weights, wiping sweat, and tapping away at a screen!
 
-4. `google-services.json`をダウンロードします。
+### ⏱️ 2. Socially-Friendly "Rest & Etiquette" Timer
 
-### 2. google-services.jsonを配置
+In Japanese gym culture, etiquette is paramount. For scientific training routines like "3 consecutive sets per machine, with rest times under 50 seconds":
 
-ダウンロードした`google-services.json`は、プロジェクト直下ではなくAndroidアプリモジュール直下に置きます。
+* **Intuitive Progress Display**: Clearly displays the current set count and remaining rest time on screen.
+* **Eliminates Social Misunderstandings**: Anyone walking by can see at a glance: *"Ah, they're resting, finished 2 sets, 1 left."* This preserves your personal training rhythm while balancing courtesy toward others.
 
-```text
-gymplayer/
-  app/
-    google-services.json
-```
+### 🎵 3. Deeply Integrated Offline Music Experience
 
-つまり、このリポジトリでは次の場所です。
+* **Offline First**: Out of respect for gyms that prioritize privacy (or restrict Wi-Fi access), the app supports full offline playback—no network required once downloaded.
+* **Personalized Motivation**: Native support for playing local music files (including my collection of custom AI gym tracks made with Suno!). Music and training become one, boosting your drive to power through.
 
-```text
-app/google-services.json
-```
+### 📊 4. Ditch Pen & Paper: Efficient Digital Routine Management
 
-`google-services.json`にはプロジェクト固有の設定が含まれるため、通常はGitにコミットしないでください。このリポジトリの`.gitignore`でも`google-services.json`は除外対象です。
+* **Auto-Generation & Clear Guidance**: Set up your daily routine in one tap before workouts, showing required machines and completion status at a glance.
+* **Adaptable to Busy Crowds**: Supports multi-machine selection. Even if the gym is crowded and you need to switch exercise order on the fly, you can easily manage remaining progress without missing a beat.
 
-### 3. Firebase Authenticationを設定
+---
 
-Firebase Consoleで次を有効化します。
+## 🛠️ Tech Stack (Built With)
 
-1. Authenticationを開く
-2. Sign-in methodを開く
-3. Email/Passwordを有効化
-4. テスト用ユーザーを作成
+This project was built using Codex in GPT-5.5 and GPT-5.6 modes—a 100% VibeCoding development experience without writing a single line of manual code. Here's what was achieved with Codex:
 
-アプリの設定画面から、このメールアドレスとパスワードでログインします。
+* **Language & UI**: Kotlin, Android Jetpack Compose
+* **Media Playback**: Media3 ExoPlayer, MediaSession (Full support for Bluetooth media buttons)
+* **Local Storage**: Room Database, DataStore
+* **Cloud Services**: Firebase Authentication, Cloud Firestore, Firebase Storage
+* **Build Tool**: Gradle Kotlin DSL
 
-### 4. Cloud Firestoreを設定
+![](app_001_en.png)
+![](app_002_en.png)
 
-Firestore Databaseを作成し、ルールをデプロイします。
+---
+
+## 📈 Body Metrics & Cloud Sync
+
+* **Comprehensive Data Tracking**: Tracks pre-workout blood pressure/pulse, alongside post-workout weight, body fat %, muscle mass, body water %, BMI, basal metabolism, and visceral fat.
+* **Offline-First Architecture**: Operates offline by default to avoid gym network constraints. All data is safely stored in a local Room database, then synced to Firestore with one tap upon returning home, laying a solid foundation for future data analytics.
+
+![](app_003_en.png)
+
+---
+
+## 🔮 Future Outlook & Developer Notes
+
+1. **🤖 AI Training Analytics**: The app has yielded fantastic real-world training results and earned my trainer's seal of approval! Once enough data accumulates, I plan to introduce AI-driven analytics to provide users with data-backed training suggestions and optimization plans.
+2. **🛡️ Hardware Safety Upgrades**: *(Real story alert 🚨)* During testing, intense machine vibration caused my tablet to fall and shatter its screen. **(Yep, if the promotional images show a scuffed screen, that's a real "badge of honor" from the battlefield, haha!)** While the screen got cracked, it sparked new inspiration: I'll be exploring sturdier physical mounting solutions or optimizing for portrait mode to protect hardware in the future.
+
+---
+
+## ⚡ Quick Start
+
+Want to try it out or contribute? Get it running locally in just a few simple steps:
+
+### 1. Clone the Repository
 
 ```bash
-firebase deploy --only firestore:rules
+git clone https://github.com/your-username/gymplayer.git
+cd gymplayer
+
 ```
 
-このリポジトリの`firestore.rules`では、次のようなアクセス制御になっています。
+### 2. Configure Firebase
 
-- `users/{uid}/...`: ログイン中の本人だけが読み書き可能
-- `machines`: ログイン済みユーザーは読み取り可能、アプリからの書き込みは禁止
+1. Create a new project in the [Firebase Console](https://console.firebase.google.com/).
+2. Add an Android app with the Package Name: `com.vibecodingjapan.gymplayer`
+3. Download `google-services.json` and place it in the `app/` directory (already added to `.gitignore`).
+4. Enable **Email/Password Authentication** in the Firebase Console.
+5. Deploy Firestore Rules: `firebase deploy --only firestore:rules`
 
-### 5. Firebase Storageを設定
+### 3. Initialize Machine Data (Optional)
 
-マシン画像を使う場合はFirebase Storageを有効化し、画像をアップロードします。Firestoreの`machines`コレクションに`imageStorageUrl`を保存すると、同期時にアプリが画像を取得します。
+The `tool` directory contains Node.js scripts for uploading and updating gym machine information. Run this code to update your machine data.
 
-`imageStorageUrl`の例:
+---
 
-```text
-gs://your-project-id.appspot.com/machines/chest_press.png
-```
+## 🤝 Contribution & Feedback
 
-### 6. マシンマスタをFirestoreに登録
+GymPlayer started as a solution to a personal pain point, but I hope it brings value to every fitness enthusiast out there.
 
-アプリはFirestoreの`machines`コレクションからマシン一覧を取得します。各ドキュメントには、最低限次のフィールドを用意してください。
+If you face similar frustrations at the gym or have cool ideas for interactions, feel free to submit an Issue or Pull Request!
 
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `number` | string | マシン番号。例: `11`、`11a`、`11b` |
-| `name` | string | マシン名 |
-| `bodyPart` | string | 対象部位 |
-| `icon` | string | 表示用アイコン |
-| `targetSets` | number | 目標セット数 |
-| `defaultWeight` | number | 初期重量 |
-| `imageStorageUrl` | string | Firebase Storage画像URL。任意 |
-| `updatedAt` | number | 更新時刻。任意 |
+**💪 Let’s build better bodies and lives together through code!**
 
-例:
+---
 
-```json
-{
-  "number": "11a",
-  "name": "Chest Press",
-  "bodyPart": "Chest",
-  "icon": "🏋",
-  "targetSets": 3,
-  "defaultWeight": 40,
-  "imageStorageUrl": "gs://your-project-id.appspot.com/machines/chest_press.png",
-  "updatedAt": 1720000000000
-}
-```
+## Test Account:
 
-### 7. ビルドと起動
-
-Android Studioでプロジェクトを開くか、次のコマンドでビルドします。
-
-```bash
-./gradlew assembleDebug
-```
-
-テストを実行する場合:
-
-```bash
-./gradlew test
-```
-
-## 使い方
-
-1. Firebase Authenticationのメールアドレスとパスワードでログインします。
-2. 同期を実行し、マシン一覧を取得します。
-3. 音楽画面で端末内フォルダからプレイリストを作成します。
-4. トレーニングメニューで今日使うマシンを選択します。
-5. トレーニング前の血圧・脈拍を入力します。
-6. セットごとに重量・回数を記録し、休憩タイマーに沿って進めます。
-7. トレーニング後の身体データを入力して保存します。
-8. 履歴画面で過去のワークアウトを確認し、必要に応じてFirebaseへ同期します。
-
-## 今後の拡張アイデア
-
-- 部位別・マシン別のトレーニングボリューム分析
-- 重量、回数、体組成の推移グラフ
-- 混雑状況に応じた代替マシン提案
-- Firebase上のデータを使ったダッシュボード化
-- トレーニングメニューのCSV/スプレッドシート取り込み強化
+* Android APK: [gymplayer-ver1.apk](app_installfile/gymplayer-ver1.apk)
+* Email: test@vibecodingjapan.com
+* Password: testtest
